@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/workspace" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/tool-runtime" },
+    { "path": "./packages/task-engine" },
+    { "path": "./packages/context-engine" },
+    { "path": "./packages/memory" },
+    { "path": "./packages/ui-kit" },
+    { "path": "./packages/agent-core" },
+    { "path": "./apps/tui" }
+  ]
+}

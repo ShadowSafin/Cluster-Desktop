@@ -1,0 +1,33 @@
+{
+  "name": "cluster-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cluster CLI - Terminal-first AI coding assistant. Phase 1: a reliable MVP foundation.",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "rebuild": "tsc -b --force",
+    "clean": "tsc -b --clean",
+    "typecheck": "tsc -b --pretty false",
+    "dev": "tsx apps/tui/src/cli.ts",
+    "start": "node apps/tui/dist/cli.js",
+    "cluster": "node apps/tui/dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}

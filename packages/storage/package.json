@@ -1,0 +1,19 @@
+{
+  "name": "@cluster/storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@cluster/shared": "*",
+    "lowdb": "^7.0.1"
+  }
+}

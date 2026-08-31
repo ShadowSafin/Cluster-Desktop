@@ -1,0 +1,25 @@
+{
+  "name": "cluster-tui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/cli.js",
+  "bin": {
+    "cluster": "./dist/cli.js"
+  },
+  "dependencies": {
+    "@cluster/agent-core": "*",
+    "@cluster/shared": "*",
+    "@cluster/storage": "*",
+    "@cluster/tool-runtime": "*",
+    "@cluster/workspace": "*",
+    "@cluster/task-engine": "*",
+    "@cluster/context-engine": "*",
+    "@cluster/memory": "*",
+    "@cluster/ui-kit": "*",
+    "commander": "^13.0.0",
+    "dotenv": "^16.4.7",
+    "ink": "^5.1.0",
+    "react": "^18.3.1"
+  }
+}

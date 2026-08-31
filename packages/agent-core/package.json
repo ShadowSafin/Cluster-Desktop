@@ -1,0 +1,25 @@
+{
+  "name": "@cluster/agent-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@cluster/shared": "*",
+    "@cluster/storage": "*",
+    "@cluster/tool-runtime": "*",
+    "@cluster/workspace": "*",
+    "@cluster/task-engine": "*",
+    "@cluster/context-engine": "*",
+    "@cluster/memory": "*",
+    "zod": "^4.0.0"
+  }
+}
