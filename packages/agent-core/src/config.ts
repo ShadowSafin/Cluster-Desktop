@@ -14,6 +14,7 @@ export const projectConfigSchema = z
   .object({
     model: z.string().optional(),
     baseUrl: z.string().optional(),
+    apiKey: z.string().optional(),
     maxIterations: z.number().int().positive().optional(),
     temperature: z.number().min(0).max(2).optional(),
     commands: z
@@ -113,6 +114,8 @@ export async function loadConfig(
 
   const apiKey =
     overrides.apiKey ??
+    project?.apiKey ??
+    global?.apiKey ??
     env.CLUSTER_API_KEY ??
     env.OPENAI_API_KEY ??
     '';

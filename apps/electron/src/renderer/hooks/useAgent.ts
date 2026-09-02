@@ -1,0 +1,276 @@
+import { useEffect, useState, useCallback, useRef } from 'react';
+
+export type AgentPhase = 'idle'|'planning'|'thinking'|'reading'|'editing'|'running'|'verifying'|'summarizing'|'waiting'|'done'|'error'|'cancelled';
+export interface AgentState {
+  phase: AgentPhase;
+  label: string;
+  iteration: number;
+  maxIterations: number;
+}
+export interface TimelineEntry {
+  kind: 'message' | 'tool';
+  id: string;
+  at: string;
+  message?: any;
+  call?: any;
+}
+export interface TaskItem {
+  id: string;
+  title: string;
+  status: 'pending'|'ready'|'running'|'done'|'failed'|'blocked'|'cancelled'|'paused';
+  agentRole?: string;
+}
+export interface TaskGraph {
+  id: string;
+  goal: string;
+  status: string;
+  tasks: Record<string, TaskItem>;
+}
+
+export function useAgent(sessionId: string | null) {
+  const isElectron = typeof (window as any).cluster !== 'undefined';
+  const [entries, setEntries] = useState<TimelineEntry[]>([]);
+  const [agentState, setAgentState] = useState<AgentState>({ phase:'idle', label:'Ready', iteration:0, maxIterations:40 });
+  const [running, setRunning] = useState(false);
+  const [plan, setPlan] = useState<any|null>(null);
+  const [taskGraph, setTaskGraph] = useState<TaskGraph|null>(null);
+  const [liveOutput, setLiveOutput] = useState<Record<string,string>>({});
+  const [activity, setActivity] = useState<string[]>([]);
+  const [edits, setEdits] = useState<any[]>([]);
+  const [streamingText, setStreamingText] = useState('');
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [pendingConfirm, setPendingConfirm] = useState<any|null>(null);
+  const [recalledMemories, setRecalledMemories] = useState<any[]>([]);
+
+  const pushActivity = useCallback((msg: string) => {
+    setActivity(a => [...a.slice(-200), `[${new Date().toLocaleTimeString()}] ${msg}`]);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setEntries([]); setPlan(null); setTaskGraph(null); setEdits([]); setActivity([]); setLiveOutput({}); setJobs([]); setStreamingText(''); setAgentState({ phase:'idle', label:'Ready', iteration:0, maxIterations:40 }); setRunning(false);
+      return;
+    }
+    if (!isElectron) return;
+    window.cluster.sessions.get(sessionId).then(sess => {
+      if (!sess) return;
+      const entriesFromSess: TimelineEntry[] = [
+        ...(sess.messages||[]).map((m:any)=>({ kind:'message' as const, id:m.id, at:m.createdAt, message:m })),
+        ...(sess.toolCalls||[]).map((c:any)=>({ kind:'tool' as const, id:c.id, at:c.createdAt, call:c })),
+      ].sort((a,b)=>a.at.localeCompare(b.at));
+      setEntries(entriesFromSess);
+      setAgentState(sess.state ?? { phase:'idle', label:'Ready', iteration:0, maxIterations:40 });
+      setPlan(sess.plan ?? null);
+      setEdits(sess.edits ?? []);
+      if (sess.commandRuns?.length) {
+        setJobs(sess.commandRuns.map((r:any)=>({ id:r.id, command:r.command, cwd:r.cwd, status: r.exitCode===0?'done':'failed', output: r.stdout, startedAt: r.startedAt })));
+      }
+      setRunning(sess.state?.phase==='running' || sess.state?.phase==='thinking' || sess.state?.phase==='planning');
+    }).catch((e)=>console.warn('[Cluster] sessions.get failed', e));
+    window.cluster.jobs.list(sessionId).then(setJobs).catch((e)=>console.warn('[Cluster] jobs.list failed', e));
+  }, [sessionId, isElectron]);
+
+  useEffect(() => {
+    if (!sessionId || !isElectron) return;
+    const unsubs = [
+      window.cluster.agent.onMessage(({ sessionId: sid, message }) => {
+        if (sid !== sessionId) return;
+        setStreamingText('');
+        // Skip assistant messages that have no text and no tools
+        if (message.role === 'assistant' && !message.content?.trim() && (!message.toolCallIds || message.toolCallIds.length === 0)) {
+          return;
+        }
+        setEntries(e => {
+          // If this message already exists by id, skip
+          if (e.some(x => x.kind === 'message' && x.id === message.id)) return e;
+          // Match optimistic user message added by submit()
+          if (message.role === 'user') {
+            const optIdx = e.findIndex(x => x.kind === 'message' && x.message?.role === 'user' && x.message?.content === message.content && x.id.startsWith('msg-'));
+            if (optIdx >= 0) {
+              const copy = [...e];
+              copy[optIdx] = { kind: 'message', id: message.id, at: message.createdAt, message };
+              return copy;
+            }
+          }
+          return [...e, { kind: 'message', id: message.id, at: message.createdAt, message }];
+        });
+        if (message.content?.trim()) {
+          pushActivity(`${message.role}: ${message.content.slice(0, 140)}`);
+        }
+      }),
+      window.cluster.agent.onDelta(({ sessionId: sid, text }) => {
+        if (sid!==sessionId) return;
+        setStreamingText(t=>t+text);
+      }),
+      window.cluster.agent.onToolStart(({ sessionId: sid, call }) => {
+        if (sid!==sessionId) return;
+        setStreamingText('');
+        setEntries(e=>[...e, { kind:'tool', id:call.id, at:call.createdAt, call }]);
+        pushActivity(`→ ${call.name} ${JSON.stringify(call.input).slice(0,80)}`);
+        setAgentState(s=>({...s, phase:'running'}));
+        setRunning(true);
+        // update task graph to running for related task
+        if (call.name) {
+          setTaskGraph(g=> g ? { ...g, tasks: Object.fromEntries(Object.entries(g.tasks).map(([k,v])=> [k, v.status==='pending'||v.status==='ready' ? {...v, status:'running'} : v ])) } : g);
+        }
+      }),
+      window.cluster.agent.onToolEnd(({ sessionId: sid, call }) => {
+        if (sid!==sessionId) return;
+        setEntries(e=> e.map(entry=> entry.kind==='tool' && entry.id===call.id ? {...entry, call} : (entry.id===call.id ? {...entry, call} : entry)));
+        // if call was not found via id, append (fallback for demo where id differs)
+        setEntries(e=>{
+          const exists = e.some(en=> en.id===call.id);
+          if (!exists && call.id) return [...e, { kind:'tool' as const, id:call.id, at: call.finishedAt||new Date().toISOString(), call }];
+          return e;
+        });
+        if (call.result?.data?.diff) {
+          setEdits(ed=> {
+            const exists = ed.some((x:any)=> x.path===call.result.data.path && x.diff===call.result.data.diff);
+            if (exists) return ed;
+            return [...ed, { path: call.result.data.path, diff: call.result.data.diff, additions: call.result.data.additions ?? 0, deletions: call.result.data.deletions ?? 0, createdAt: call.finishedAt }];
+          });
+        }
+        pushActivity(`✓ ${call.name} ${call.status} ${call.durationMs?`(${call.durationMs}ms)`:''}`);
+        // live output clear for that call
+        setLiveOutput(lo=>{ const n={...lo}; delete n[call.id]; return n; });
+      }),
+      (window.cluster.agent as any).onToolOutput?.(({ sessionId: sid, callId, chunk }:any)=>{
+        if (sid!==sessionId) return;
+        setLiveOutput(prev=>({ ...prev, [callId]: (prev[callId]||'') + chunk }));
+        pushActivity(`output ${callId.slice(0,6)}: ${chunk.slice(0,60)}`);
+      }),
+      window.cluster.agent.onProgress(({ sessionId: sid, message }) => {
+        if (sid!==sessionId) return;
+        pushActivity(message);
+        // parse agent activity for card updates
+        const m = /^\[(\w+)\]\s*(.*)/.exec(message);
+        if (m) {
+          const role=m[1], msg=m[2];
+          // could update agent cards here via activity
+        }
+      }),
+      window.cluster.agent.onState(({ sessionId: sid, state }) => {
+        if (sid!==sessionId) return;
+        setAgentState(state);
+        if (state.phase==='running' || state.phase==='thinking' || state.phase==='planning') setRunning(true);
+      }),
+      window.cluster.agent.onPlan(({ sessionId: sid, plan: p }) => {
+        if (sid!==sessionId) return;
+        setPlan(p);
+        const graph: TaskGraph = {
+          id: 'graph-'+Date.now(),
+          goal: p.goal,
+          status: 'running',
+          tasks: Object.fromEntries(p.steps.map((s:any)=>[s.id, { id:s.id, title:s.text, status:'pending', agentRole: (s.text.match(/\[(\w+)\]/)?.[1] ?? 'coder') }])),
+        };
+        setTaskGraph(graph);
+        pushActivity(`Plan: ${p.goal} — ${p.steps.length} steps`);
+      }),
+      (window.cluster.agent as any).onGraph?.(({ sessionId: sid, graph }:any)=>{
+        if (sid!==sessionId) return;
+        setTaskGraph(graph);
+        pushActivity(`Graph: ${Object.keys(graph.tasks).length} tasks`);
+      }),
+      (window.cluster.agent as any).onEdit?.(({ sessionId: sid, edit }:any)=>{
+        if (sid!==sessionId) return;
+        setEdits(ed=> [...ed, edit]);
+        pushActivity(`edit ${edit.path} +${edit.additions} -${edit.deletions}`);
+      }),
+      (window.cluster.agent as any).onJob?.(({ sessionId: sid, job }:any)=>{
+        if (sid!==sessionId) return;
+        setJobs(j=> {
+          const idx=j.findIndex((x:any)=>x.id===job.id);
+          if (idx>=0) { const n=[...j]; n[idx]=job; return n; }
+          return [...j, job];
+        });
+      }),
+      (window.cluster.agent as any).onError?.(({ sessionId: sid, error }:any)=>{
+        if (sid!==sessionId) return;
+        setStreamingText('');
+        pushActivity(`error [${error.source}]: ${error.message}`);
+        setAgentState(s=>({...s, phase:'error' as any, label: 'Failed'}));
+        setEntries(e => {
+          const alreadyHas = e.some(item => item.kind === 'message' && item.message?.content?.includes(error.message));
+          if (alreadyHas) return e;
+          return [...e, {
+            kind: 'message',
+            id: 'err-' + Date.now(),
+            at: new Date().toISOString(),
+            message: {
+              id: 'err-' + Date.now(),
+              sessionId: sid,
+              role: 'assistant',
+              kind: 'error',
+              content: `⚠️ ${error.message}`,
+              createdAt: new Date().toISOString(),
+            }
+          }];
+        });
+      }),
+      (window.cluster.agent as any).onConfirm?.(({ sessionId: sid, request }:any)=>{
+        if (sid!==sessionId) return;
+        setPendingConfirm(request);
+        pushActivity(`confirm required: ${request.tool} — ${request.reason}`);
+      }),
+      (window.cluster.agent as any).onMemoryRecalled?.(({ sessionId: sid, memories }: any) => {
+        if (sid !== sessionId) return;
+        setRecalledMemories(memories);
+        pushActivity(`Recalled ${memories.length} durable memories`);
+      }),
+      window.cluster.agent.onDone(({ sessionId: sid, summary, cancelled }) => {
+        if (sid!==sessionId) return;
+        setRunning(false);
+        setStreamingText('');
+        setAgentState(s=>({...s, phase: cancelled ? 'cancelled' : 'done' as any }));
+        pushActivity(cancelled ? 'cancelled' : `done: ${summary.slice(0,120)}`);
+        setTaskGraph(g=> g ? {...g, status: cancelled?'cancelled':'done', tasks: Object.fromEntries(Object.entries(g.tasks).map(([k,v])=>[k, {...v, status: (v.status==='running'||v.status==='pending'||v.status==='ready') ? (cancelled?'cancelled':'done') as any : v.status }]))} : g);
+      }),
+    ].filter(Boolean) as (()=>void)[];
+    return ()=> unsubs.forEach(fn=>fn());
+  }, [sessionId, pushActivity, isElectron]);
+
+  const submit = useCallback(async (text: string) => {
+    if (!sessionId || !text.trim()) return;
+    if (!isElectron) { pushActivity('Cannot send: not in Electron (no preload)'); return; }
+    const trimmed = text.trim();
+    const userMsg = { id:`msg-${Date.now()}`, sessionId, role:'user', content: trimmed, createdAt: new Date().toISOString(), kind:'chat' };
+    setEntries(e=>[...e, { kind:'message', id:userMsg.id, at:userMsg.createdAt, message:userMsg }]);
+    setRunning(true);
+    setAgentState({ phase:'planning', label:'Planning', iteration:0, maxIterations:40 });
+    setStreamingText('');
+    setLiveOutput({});
+    const isMulti = trimmed.startsWith('/multi ');
+    const actualText = isMulti ? trimmed.replace(/^\/multi\s+/, '') : trimmed;
+    try {
+      await window.cluster.agent.send({ sessionId, text: actualText, mode: isMulti ? 'multi' : 'single' });
+    } catch (e:any) {
+      pushActivity(`send failed: ${e.message}`);
+      setRunning(false);
+    }
+  }, [sessionId, pushActivity, isElectron]);
+
+  const cancel = useCallback(async () => {
+    if (!sessionId) return;
+    if (!isElectron) return;
+    await window.cluster.agent.cancel(sessionId);
+    setRunning(false);
+    setAgentState(s=>({...s, phase:'cancelled'}));
+    pushActivity('cancel requested');
+  }, [sessionId, pushActivity, isElectron]);
+
+  const confirm = useCallback((approved:boolean)=>{
+    if (!pendingConfirm || !sessionId) return;
+    if (!isElectron) return;
+    (window.cluster.agent as any).confirm(sessionId, pendingConfirm.id||pendingConfirm.tool, approved);
+    setPendingConfirm(null);
+    pushActivity(approved ? 'confirmed' : 'rejected');
+  }, [pendingConfirm, sessionId, pushActivity, isElectron]);
+
+  const clear = useCallback(()=>{
+    setEntries([]);
+    setStreamingText('');
+    setLiveOutput({});
+  }, []);
+
+  return { entries, agentState, running, plan, taskGraph, liveOutput, activity, edits, jobs, streamingText, pendingConfirm, recalledMemories, submit, cancel, confirm, clear, setEntries, setTaskGraph };
+}

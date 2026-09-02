@@ -219,6 +219,7 @@ export class ModelProvider {
     let buffer = '';
 
     let content = '';
+    let reasoningContent = '';
     let finishReason: string | null = null;
     let usage: ChatUsage = { prompt: 0, completion: 0, total: 0 };
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
@@ -254,10 +255,16 @@ export class ModelProvider {
 
           if (choice.finish_reason) finishReason = choice.finish_reason;
 
-          const delta = choice.delta;
+          const delta = choice.delta as any;
           if (delta?.content) {
             content += delta.content;
             onDelta?.(delta.content);
+          } else if (delta?.text) {
+            content += delta.text;
+            onDelta?.(delta.text);
+          } else if (delta?.reasoning_content) {
+            reasoningContent += delta.reasoning_content;
+            onDelta?.(delta.reasoning_content);
           }
 
           for (const call of delta?.tool_calls ?? []) {
@@ -275,8 +282,10 @@ export class ModelProvider {
       reader.releaseLock?.();
     }
 
+    const finalContent = content.trim() !== '' ? content : (reasoningContent.trim() !== '' ? reasoningContent : content);
+
     return {
-      content,
+      content: finalContent,
       toolCalls: [...toolCalls.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([index, call]) => ({

@@ -43,4 +43,5 @@ export interface AgentEvents {
     iterations: number;
   };
   workspace: WorkspaceInfo;
+  'memory:recalled': { sessionId: string; memories: any[] };
 }

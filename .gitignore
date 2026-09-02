@@ -7,3 +7,7 @@ dist/
 coverage/
 *.log
 .DS_Store
+# Electron
+apps/electron/dist/
+apps/electron/release/
+apps/electron/node_modules/

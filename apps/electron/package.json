@@ -1,0 +1,100 @@
+{
+  "name": "cluster-electron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cluster Desktop — premium dark coding assistant",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"wait-on http://localhost:5173 && electron dist/main/index.js\"",
+    "dev:renderer": "vite --config vite.config.ts",
+    "dev:main": "tsc -p tsconfig.main.json --watch & tsc -p tsconfig.preload.json --watch",
+    "build": "npm run build:main && npm run build:preload && npm run build:preload:fix && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:preload": "tsc -p tsconfig.preload.json",
+    "build:preload:fix": "node -e \"require('fs').writeFileSync('dist/preload/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "build:renderer": "vite build --config vite.config.ts",
+    "build:installer": "npm run build && electron-builder --win --x64",
+    "start": "electron dist/main/index.js",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.preload.json --noEmit && tsc -p tsconfig.renderer.json --noEmit"
+  },
+  "dependencies": {
+    "@cluster/agent-core": "*",
+    "@cluster/context-engine": "*",
+    "@cluster/memory": "*",
+    "@cluster/shared": "*",
+    "@cluster/storage": "*",
+    "@cluster/task-engine": "*",
+    "@cluster/tool-runtime": "*",
+    "@cluster/workspace": "*",
+    "lucide-react": "^1.39.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^8.2.2",
+    "electron": "31.7.7",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0",
+    "vite": "^5.4.11",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "ai.cluster.desktop",
+    "productName": "Cluster",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": "resources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Cluster-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ]
+    }
+  }
+}

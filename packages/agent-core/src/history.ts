@@ -40,6 +40,12 @@ export function toProviderMessages(messages: readonly Message[], toolCalls: read
       continue;
     }
 
+    // Deduplicate consecutive identical user messages
+    const last = out[out.length - 1];
+    if (last && last.role === 'user' && last.content === message.content) {
+      continue;
+    }
+
     out.push({ role: 'user', content: message.content });
   }
 

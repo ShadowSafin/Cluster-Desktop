@@ -231,14 +231,44 @@ export interface AgentState {
   model: string;
 }
 
+export type RequestCategory =
+  | 'ui_ux'
+  | 'frontend'
+  | 'backend'
+  | 'electron_desktop'
+  | 'workflow'
+  | 'provider_model'
+  | 'memory_persistence'
+  | 'command_execution'
+  | 'background_jobs'
+  | 'diffs_review'
+  | 'performance_reliability'
+  | 'packaging_build'
+  | 'bug_fix'
+  | 'refactor'
+  | 'migration'
+  | 'feature_addition'
+  | 'architecture_change';
+
 export interface PlanStep {
   id: string;
   text: string;
-  status: 'pending' | 'in-progress' | 'done' | 'skipped';
+  status: 'pending' | 'in-progress' | 'done' | 'failed' | 'skipped';
+  role?: 'architect' | 'coder' | 'tester' | 'reviewer' | 'planner';
+  toolTarget?: string;
+  verificationCmd?: string;
 }
 
 export interface Plan {
   goal: string;
+  classification?: RequestCategory[];
+  strategy?: string;
+  alternativesConsidered?: string[];
+  constraints?: string[];
+  risks?: string[];
+  visibleOutcome?: string;
+  hiddenWorkflow?: string;
+  acceptanceCriteria?: string[];
   steps: PlanStep[];
   createdAt: IsoDateTime;
 }

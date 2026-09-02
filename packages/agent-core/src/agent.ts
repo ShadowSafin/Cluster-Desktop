@@ -47,6 +47,8 @@ export interface AgentLoopDeps {
   requestConfirm: (request: ConfirmationRequest) => Promise<boolean>;
   /** Extra instructions injected into the system prompt. */
   extraInstructions?: string | null;
+  /** Persistent SQLite and vector memory store. */
+  memory?: import('@cluster/memory').MemoryStore | null;
 }
 
 export interface AgentRunResult {
@@ -57,9 +59,27 @@ export interface AgentRunResult {
   error: string | null;
 }
 
+const stepItemSchema = z.union([
+  z.string().min(1),
+  z.object({
+    text: z.string().min(1),
+    role: z.enum(['architect', 'coder', 'tester', 'reviewer', 'planner']).optional(),
+    toolTarget: z.string().optional(),
+    verificationCmd: z.string().optional(),
+  }),
+]);
+
 const planSchema = z.object({
   goal: z.string().min(1),
-  steps: z.array(z.string().min(1)).min(1).max(6),
+  classification: z.array(z.string()).optional(),
+  strategy: z.string().optional(),
+  alternativesConsidered: z.array(z.string()).optional(),
+  constraints: z.array(z.string()).optional(),
+  risks: z.array(z.string()).optional(),
+  visibleOutcome: z.string().optional(),
+  hiddenWorkflow: z.string().optional(),
+  acceptanceCriteria: z.array(z.string()).optional(),
+  steps: z.array(stepItemSchema).min(1).max(8),
 });
 
 /** How many identical consecutive tool calls before we assume the model is stuck. */
@@ -92,6 +112,9 @@ export class AgentLoop {
   private toolSignatures: string[] = [];
   private madeEdits = false;
   private ranCommand = false;
+  private readonly changedFiles = new Set<string>();
+  private readonly executedCommands = new Set<string>();
+  private currentPlan: Plan | null = null;
 
   constructor(private readonly deps: AgentLoopDeps) {
     this.messages = [...deps.history];
@@ -109,8 +132,46 @@ export class AgentLoop {
     events.emit('message', this.makeMessage('user', userInput, 'chat'));
     this.messages.push({ role: 'user', content: userInput });
 
+    // 1. Auto-extract durable knowledge, preferences, and goals from prompt
+    if (deps.memory) {
+      try {
+        await deps.memory.extractFromPrompt(userInput, {
+          projectRoot: deps.projectRoot,
+          sessionId: deps.sessionId,
+        });
+      } catch (err) {
+        this.logger.debug({ err }, 'failed to extract memory from prompt');
+      }
+    }
+
+    // 2. Pre-task contextual memory retrieval
+    let recalledMemoriesList: any[] = [];
+    if (deps.memory) {
+      try {
+        const recalled = await deps.memory.retrieveContextual({
+          queryText: userInput,
+          projectRoot: deps.projectRoot,
+          sessionId: deps.sessionId,
+          limit: 6,
+        });
+        if (recalled && recalled.length > 0) {
+          recalledMemoriesList = recalled;
+          events.emit('memory:recalled', {
+            sessionId: deps.sessionId,
+            memories: recalled,
+          });
+          const promptBlock = await deps.memory.formatForPrompt(userInput);
+          if (promptBlock) {
+            this.systemPrompt += `\n\n${promptBlock}`;
+          }
+        }
+      } catch (err) {
+        this.logger.debug({ err }, 'failed to recall memories');
+      }
+    }
+
     this.emitState('planning', 'Planning', 0, maxIterations);
-    const plan = await this.createPlan(userInput, signal);
+    const plan = await this.createPlan(userInput, signal, recalledMemoriesList);
     if (plan) events.emit('plan', plan);
 
     let iterations = 0;
@@ -144,16 +205,18 @@ export class AgentLoop {
       const toolCalls =
         response.toolCalls.length > 0 ? response.toolCalls : this.toolCallsFromText(response.content);
 
-      events.emit(
-        'message',
-        this.makeMessage(
-          'assistant',
-          response.content,
-          toolCalls.length > 0 ? 'chat' : 'summary',
-          toolCalls.map((call) => call.id),
-          messageId,
-        ),
-      );
+      if (response.content.trim() !== '') {
+        events.emit(
+          'message',
+          this.makeMessage(
+            'assistant',
+            response.content,
+            toolCalls.length > 0 ? 'chat' : 'summary',
+            toolCalls.map((call) => call.id),
+            messageId,
+          ),
+        );
+      }
 
       this.messages.push({
         role: 'assistant',
@@ -163,6 +226,29 @@ export class AgentLoop {
 
       if (toolCalls.length === 0) {
         summary = response.content.trim();
+        if (summary === '' && !signal.aborted) {
+          try {
+            const fallback = await this.deps.provider.complete({
+              messages: [
+                { role: 'system', content: this.systemPrompt },
+                ...trimHistory(this.messages, HISTORY_BUDGET_CHARS),
+              ],
+              signal,
+            });
+            if (fallback.content.trim() !== '') {
+              summary = fallback.content.trim();
+              events.emit(
+                'message',
+                this.makeMessage('assistant', summary, 'summary', [], messageId),
+              );
+              this.messages.push({ role: 'assistant', content: summary });
+              break;
+            }
+          } catch {
+            // fall through to error emission
+          }
+        }
+
         if (summary === '') {
           summary = 'The model returned an empty response.';
           events.emit('error', {
@@ -190,6 +276,49 @@ export class AgentLoop {
         });
         events.emit('error', { source: 'agent', message: error, recoverable: true });
         break;
+      }
+    }
+
+    // Ensure a clear final assistant summary is ALWAYS produced and emitted
+    const lastMsg = this.messages[this.messages.length - 1];
+    const hasFinalAssistantText =
+      lastMsg &&
+      lastMsg.role === 'assistant' &&
+      Boolean(lastMsg.content?.trim()) &&
+      (!lastMsg.tool_calls || lastMsg.tool_calls.length === 0);
+
+    if (!hasFinalAssistantText && !cancelled && !signal.aborted) {
+      const finalMsgId = createId('msg');
+      try {
+        const finalPrompt =
+          'All requested operations have concluded. Provide a clear, structured final summary of everything that was done, files inspected or modified, and verification results.';
+        const completion = await this.deps.provider.complete({
+          messages: [
+            { role: 'system', content: this.systemPrompt },
+            ...trimHistory(this.messages, HISTORY_BUDGET_CHARS),
+            { role: 'user', content: finalPrompt },
+          ],
+          signal,
+        });
+        if (completion.content.trim() !== '') {
+          summary = completion.content.trim();
+          events.emit(
+            'message',
+            this.makeMessage('assistant', summary, 'summary', [], finalMsgId),
+          );
+          this.messages.push({ role: 'assistant', content: summary });
+        }
+      } catch {
+        if (!summary) {
+          summary = this.madeEdits
+            ? 'Completed requested code changes.'
+            : 'Completed requested operations.';
+          events.emit(
+            'message',
+            this.makeMessage('assistant', summary, 'summary', [], finalMsgId),
+          );
+          this.messages.push({ role: 'assistant', content: summary });
+        }
       }
     }
 
@@ -223,12 +352,42 @@ export class AgentLoop {
       maxIterations,
     );
 
+    if (this.currentPlan) {
+      for (const step of this.currentPlan.steps) {
+        if (step.status === 'pending' || step.status === 'in-progress') {
+          step.status = cancelled ? 'skipped' : error ? 'failed' : 'done';
+        }
+      }
+      events.emit('plan', { ...this.currentPlan, steps: [...this.currentPlan.steps] });
+    }
+
     events.emit('done', {
       summary: cancelled ? 'Cancelled by user.' : summary || error || 'Finished.',
       usage,
       cancelled,
       iterations,
     });
+
+    if (deps.memory && !cancelled) {
+      try {
+        await deps.memory.extractFromWorkflow({
+          goal: userInput,
+          summary: summary || (error ? `Failed: ${error}` : 'Task completed.'),
+          success: !error && !cancelled,
+          filesChanged: Array.from(this.changedFiles),
+          commandsRun: Array.from(this.executedCommands),
+          errorEncountered: error || undefined,
+          plan: this.currentPlan || undefined,
+          userCorrection: /(?:instead of|don't use|never use|no use|do not use)\s+/i.test(userInput)
+            ? userInput
+            : undefined,
+          projectRoot: deps.projectRoot,
+          sessionId: deps.sessionId,
+        });
+      } catch (err) {
+        this.logger.debug({ err }, 'failed to extract workflow memory');
+      }
+    }
 
     return { iterations, usage, summary, cancelled, error };
   }
@@ -355,6 +514,7 @@ export class AgentLoop {
       const phase = PHASE_BY_TOOL[call.function.name] ?? 'thinking';
       this.emitState(phase, `Using ${call.function.name}`, 0, this.deps.config.maxIterations);
       this.deps.events.emit('tool:start', record);
+      this.advancePlanStep(call.function.name, 'in-progress');
 
       const context = this.createToolContext(signal, record.id);
       const outcome = await this.deps.registry.execute(call.function.name, input, context);
@@ -367,12 +527,21 @@ export class AgentLoop {
       if (outcome.meta.risk !== 'safe') record.confirmation = 'approved';
 
       this.deps.events.emit('tool:end', record);
+      this.advancePlanStep(call.function.name, outcome.result.ok ? 'done' : 'failed');
 
       if (call.function.name === 'write_file' || call.function.name === 'patch_file') {
         const changed = outcome.result.data as { changed?: boolean } | undefined;
-        if (outcome.result.ok && changed?.changed !== false) this.madeEdits = true;
+        if (outcome.result.ok && changed?.changed !== false) {
+          this.madeEdits = true;
+          const p = (input as any)?.path;
+          if (p) this.changedFiles.add(p);
+        }
       }
-      if (call.function.name === 'run_command') this.ranCommand = true;
+      if (call.function.name === 'run_command') {
+        this.ranCommand = true;
+        const cmd = (input as any)?.command;
+        if (cmd) this.executedCommands.add(cmd);
+      }
 
       const feedback = capMiddle(outcome.result.output, this.deps.config.maxToolOutputChars).text;
       this.deps.events.emit('message', this.makeMessage('tool', feedback, 'tool-result', [call.id]));
@@ -415,8 +584,22 @@ export class AgentLoop {
   /* ---------------------------------------------------------------------- */
 
   /** Planning is an enhancement, never a blocker: any failure is non-fatal. */
-  private async createPlan(userInput: string, signal: AbortSignal): Promise<Plan | null> {
+  private async createPlan(
+    userInput: string,
+    signal: AbortSignal,
+    recalledMemories?: any[],
+  ): Promise<Plan | null> {
     try {
+      const memoryContext =
+        recalledMemories && recalledMemories.length > 0
+          ? [
+              'Recalled Project Memories & User Preferences:',
+              ...recalledMemories.map(
+                (m) => `- [${m.category}] ${m.title}: ${m.value.replace(/\n+/g, ' ').slice(0, 160)}`,
+              ),
+            ].join('\n')
+          : '';
+
       const response = await this.deps.provider.chat({
         messages: [
           { role: 'system', content: PLAN_SYSTEM_PROMPT },
@@ -426,6 +609,7 @@ export class AgentLoop {
               `Repository: ${this.deps.projectRoot}`,
               this.deps.workspace ? `Project type: ${this.deps.workspace.project.kind}` : '',
               this.deps.workspace?.git ? `Branch: ${this.deps.workspace.git.branch}` : '',
+              memoryContext ? `\n${memoryContext}` : '',
               '',
               `Task: ${userInput}`,
             ]
@@ -434,23 +618,67 @@ export class AgentLoop {
           },
         ],
         signal,
-        maxTokens: 500,
+        maxTokens: 800,
         jsonMode: true,
       });
 
       const parsed = planSchema.safeParse(JSON.parse(response.content));
       if (!parsed.success) return null;
 
-      const steps: PlanStep[] = parsed.data.steps.map((text) => ({
-        id: createId('step'),
-        text,
-        status: 'pending' as const,
-      }));
+      const steps: PlanStep[] = parsed.data.steps.map((item) => {
+        if (typeof item === 'string') {
+          return {
+            id: createId('step'),
+            text: item,
+            status: 'pending' as const,
+          };
+        }
+        return {
+          id: createId('step'),
+          text: item.text,
+          status: 'pending' as const,
+          role: item.role,
+          toolTarget: item.toolTarget,
+          verificationCmd: item.verificationCmd,
+        };
+      });
 
-      return { goal: parsed.data.goal, steps, createdAt: new Date().toISOString() };
+      const plan: Plan = {
+        goal: parsed.data.goal,
+        classification: (parsed.data.classification || []) as any,
+        strategy: parsed.data.strategy,
+        alternativesConsidered: parsed.data.alternativesConsidered,
+        constraints: parsed.data.constraints,
+        risks: parsed.data.risks,
+        visibleOutcome: parsed.data.visibleOutcome,
+        hiddenWorkflow: parsed.data.hiddenWorkflow,
+        acceptanceCriteria: parsed.data.acceptanceCriteria,
+        steps,
+        createdAt: new Date().toISOString(),
+      };
+      this.currentPlan = plan;
+      return plan;
     } catch (error) {
       this.logger.debug({ error }, 'planning skipped');
       return null;
+    }
+  }
+
+  private advancePlanStep(toolName: string, status: 'in-progress' | 'done' | 'failed'): void {
+    if (!this.currentPlan || !this.currentPlan.steps || this.currentPlan.steps.length === 0) return;
+
+    if (status === 'in-progress') {
+      const step = this.currentPlan.steps.find((s) => s.status === 'pending');
+      if (step) {
+        step.status = 'in-progress';
+        this.deps.events.emit('plan', { ...this.currentPlan, steps: [...this.currentPlan.steps] });
+      }
+    } else if (status === 'done' || status === 'failed') {
+      const activeStep = this.currentPlan.steps.find((s) => s.status === 'in-progress');
+      if (activeStep) {
+        activeStep.status = status;
+        this.deps.events.emit('plan', { ...this.currentPlan, steps: [...this.currentPlan.steps] });
+      }
     }
   }
 

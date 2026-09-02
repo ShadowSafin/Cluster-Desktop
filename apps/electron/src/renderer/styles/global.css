@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  font-variant-ligatures: common-ligatures;
+}
+
+body {
+  @apply bg-[#0a0a0d] text-[#fafafa] antialiased overflow-hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Grid background like reference */
+.grid-bg {
+  background-color: #07070a;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-[#2a2a2e] rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-[#3a3a3e];
+}
+
+/* Drag region */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Shimmer for writing state */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  animation: shimmer 1.6s infinite;
+}
+
+/* Soft glow */
+.glow-teal {
+  box-shadow: 0 0 20px rgba(0,217,165,0.15), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.glow-amber {
+  box-shadow: 0 0 20px rgba(245,158,11,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.glow-violet {
+  box-shadow: 0 0 20px rgba(139,92,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+}

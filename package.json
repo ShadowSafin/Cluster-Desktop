@@ -17,11 +17,14 @@
     "rebuild": "tsc -b --force",
     "clean": "tsc -b --clean",
     "typecheck": "tsc -b --pretty false",
-    "dev": "tsx apps/tui/src/cli.ts",
-    "start": "node apps/tui/dist/cli.js",
-    "cluster": "node apps/tui/dist/cli.js",
+    "dev": "npm --workspace=cluster-electron run dev",
+    "start": "npm --workspace=cluster-electron run start",
+    "cluster": "npm --workspace=cluster-electron run start",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "electron:dev": "npm --workspace=cluster-electron run dev",
+    "electron:build": "npm --workspace=cluster-electron run build",
+    "electron:package": "npm --workspace=cluster-electron run build:installer"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -29,5 +32,10 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.0",
     "vitest": "^2.1.8"
+  },
+  "allowScripts": {
+    "electron@31.7.7": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
   }
 }

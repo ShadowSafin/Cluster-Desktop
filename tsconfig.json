@@ -10,6 +10,6 @@
     { "path": "./packages/memory" },
     { "path": "./packages/ui-kit" },
     { "path": "./packages/agent-core" },
-    { "path": "./apps/tui" }
+    { "path": "./apps/electron" }
   ]
 }
