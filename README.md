@@ -1,235 +1,326 @@
-# Cluster — Desktop Coding Assistant
+# Cluster
 
-> **A full-featured, dark Electron desktop application with 10 dedicated views, multi-agent orchestration, and Windows executable packaging.**
+<div align="center">
 
-Cluster is an AI coding assistant designed to deliver a calm, premium desktop environment for software engineering. Built on Electron, React 18, Vite, and TypeScript, Cluster coordinates specialized agents (Planner, Coder, Reviewer, Tester, and Context) with real tool execution, streaming command output, diff reviews, memory persistence, process monitoring, and safe rollback checkpoints.
+**A desktop AI coding assistant with multi-agent orchestration, persistent memory, and safe rollback checkpoints.**
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://typescriptlang.org)
+[![Electron](https://img.shields.io/badge/Electron-31.7-black.svg)](https://electronjs.org)
+[![React](https://img.shields.io/badge/React-18.3-61dafb.svg)](https://reactjs.org)
+[![Node](https://img.shields.io/badge/Node-%3E%3D20.10-brightgreen.svg)](https://nodejs.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+[Documentation](./documentation/) · [Architecture](./documentation/architecture/system.md) · [Quick Start](./documentation/guide/quick-start.md) · [Troubleshooting](./documentation/troubleshooting/troubleshooting.md)
+
+</div>
+
+---
+
+## What Is Cluster?
+
+Cluster is a **premium dark-themed Electron desktop application** that acts as an AI-powered coding companion. It runs specialized agents — Planner, Coder, Reviewer, Tester, and Context — in parallel across your project, executes real file edits and shell commands, and gives you full visibility into every action through diffs, logs, and checkpoints.
 
 ```
-┌─ Cluster Desktop ────────────────────────────────────────────────────────┐
-│ [Sessions] [Workspace] [Tasks] [Diffs] [Logs] [Background] [Checkpoints]  │
-│                                                                          │
-│ SESSIONS ▸ atlas · main                       $ cluster plan & execute   │
-│ AGENTS   Coder ● Reviewer ● Tester            ✓ 3 parallel agents active │
-│                                                                          │
-│ ┌─ Coder ──────────────┐ ┌─ Reviewer ──────────┐ ┌─ Tester ─────────────┐│
-│ │ src/auth.ts ██████   │ │ tests/auth.ts ████  │ │ vitest run █████████ ││
-│ └──────────────────────┘ └─────────────────────┘ └──────────────────────┘│
-│                                                                          │
-│ Diff Review: src/auth.ts (+18 -3) · Checkpoint created before coder edits│
-│ cluster (main) · 3 tasks done · UTF-8 · LF · 100% parity verified         │
-└──────────────────────────────────────────────────────────────────────────┘
+┌─ Cluster Desktop ───────────────────────────────────────────────────────────┐
+│                                                                            │
+│  ◈ CLUSTER          workspace: my-project              [⚙] [✓] [◈ New]    │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                            │
+│  ┌─ Sessions ──────────────┐  ┌─ Workspace ─────────────────────────────┐  │
+│  │ • my-project (active)   │  │                                            │ │
+│  │   24 msgs · gpt-4o-mini │  │  USER   Add rate limiting to auth        │ │
+│  │                         │  │                                            │ │
+│  │ • api-refactor          │  │  ◈ ASSISTANT  Thinking (iter 3/40)       │ │
+│  │   12 msgs · gpt-4o      │  │     ├─ read_file src/middleware/auth.ts  │ │
+│  │                         │  │     ├─ patch_file (rate limiter added)   │ │
+│  │ + New Session           │  │     └─ verify → 12 passed ✓              │ │
+│  └─────────────────────────┘  │                                            │ │
+│                                │  ┌─ Tasks [3/4 done] ─┐  ┌─ Diffs [+18-3]─┐│
+│  [1] Sessions  [2] Workspace  │  │ ▶ Gather context   │  │ src/auth.ts    ││
+│  [3] Tasks     [4] Diffs      │  │ ✔ Design schema    │  │ @@ -10,7 +10,7 @@││
+│  [5] Logs      [6] Background │  │ ✔ Implement routes │  │ -old() {}      ││
+│  [7] Checkpoints [8] Memory   │  │ ✔ Review changes   │  │ +new() {}      ││
+│  [9] Provider  [0] Settings   │  └────────────────────┘  └────────────────┘│
+│                                │                                            │ │
+│                                │  my-project/main · auth middleware ·      │ │
+│                                │  gpt-4o-mini · 3 edits · running         │ │
+│                                └────────────────────────────────────────────┘ │
+│  my-project/main · auth middleware · gpt-4o-mini · 18 edits · done          │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Desktop Pages & Views
+---
 
-Cluster is organized into 10 dedicated views accessible via the sidebar navigation rail, keyboard shortcuts (`1` to `0`), and the global Command Palette (`Ctrl+K`):
+## Key Features
 
-1. **Home / Sessions (`1`)**: List, search, filter, switch, rename, and delete sessions with message and edit stats.
-2. **Workspace / Chat (`2`)**: Main conversational interface with assistant/user message cards, live tool outputs, streaming text, agent state pills, and interactive confirmation modals.
-3. **Tasks / Plan (`3`)**: Step-by-step task DAG, parallel execution batches (dependency levels), role indicators, and progress tracking.
-4. **Diff & Review (`4`)**: Unified code diffs, line addition/deletion counts, syntax highlighting, and rollback controls.
-5. **Logs (`5`)**: Searchable, filterable event streams (`Emitter<AgentEvents>`), tool outputs, and raw log inspector.
-6. **Background Processes (`6`)**: Real-time process manager tracking PID, command lines, detected ports, health status, and live output streams.
-7. **Checkpoints (`7`)**: Saved snapshot timeline, file lists, commit hashes, and one-click rollback.
-8. **Memory (`8`)**: Project and session knowledge persistence, rule categories, and manual memory entry creator.
-9. **Provider / Model (`9`)**: Active LLM provider configuration, base URL, API key status, model discovery, and live connection test ping.
-10. **Settings / Workspace (`0`)**: Workspace directory switcher (`dialog:openDirectory`), git status, 4-layer config inspection, and diagnostics.
-11. **Command Palette (`Ctrl+K`)**: Quick actions, session switching, and slash commands (`/help`, `/tasks`, `/diff`, `/logs`, `/checkpoint`, etc.).
+### Multi-Agent Orchestration
+| Capability | Description |
+|------------|-------------|
+| **Specialized Agents** | Planner decomposes requests · Coder implements changes · Reviewer inspects for issues · Tester runs verification · Context gathers repo intelligence |
+| **Parallel Execution** | Independent tasks run concurrently (up to 4 workers) with dependency-ordered batches |
+| **Role-Based Access** | Each agent only sees tools relevant to its role — Coders can't run commands; Testers can't edit files |
+| **File Locking** | Parallel agents acquire file locks to prevent conflicting edits |
+
+### Safe Code Modification
+| Feature | Detail |
+|---------|--------|
+| **15+ Tools** | Read, write, patch, search, git ops, command execution, verification, diff review |
+| **Zod Validation** | Every tool input is validated before execution — invalid calls never reach the filesystem |
+| **Risk Classification** | Every tool call is classified as `safe` / `caution` / `destructive` with appropriate confirmation gates |
+| **Automatic Backups** | Files are backed up to `~/.cluster/backups/` before any modification |
+| **Checkpoints** | Full file snapshots with git HEAD tracking; one-click rollback via `Ctrl+G` |
+
+### Persistent Memory
+| Aspect | How It Works |
+|--------|-------------|
+| **Auto-Extraction** | Goals, preferences, architecture decisions, and bug fixes are extracted from conversations |
+| **Semantic Search** | Vector-based recall surfaces relevant past work for new tasks |
+| **Prompt Injection** | Retrieved memories are formatted and injected into the system prompt before planning |
+| **Cross-Session** | Knowledge persists across sessions and app restarts |
+
+### Production-Ready UI
+| Element | Implementation |
+|---------|---------------|
+| **10 Dedicated Views** | Sessions, Workspace, Tasks, Diffs, Logs, Background Jobs, Checkpoints, Memory, Provider, Settings |
+| **Live Streaming** | Token-by-token text streaming + real-time command output |
+| **Command Palette** | `Ctrl+K` for instant navigation and actions across all pages |
+| **Keyboard Shortcuts** | `1-0` for pages, `Ctrl+C` cancel, `Ctrl+G` checkpoint, `Ctrl+O` open folder |
+| **Dark Theme** | Premium `#07070a` base with Tailwind CSS, Inter + JetBrains Mono fonts |
+
+---
+
+## Architecture Overview
+
+```
+                    ┌─────────────────────────────┐
+                    │      ELECTRON APP            │
+                    │                             │
+    ┌───────────────┼─────────────────────────┐   │
+    │  Renderer      │  Main Process           │   │
+    │  (React 18)    │  (BrowserWindow)        │   │
+    │                │                         │   │
+    │  • 10 Pages    │  • IPC handlers (40+)   │   │
+    │  • Components  │  • Agent execution      │   │
+    │  • Hooks       │  • Storage access       │   │
+    │  • State       │  • Background jobs      │   │
+    └───────┬────────┴──────────┬──────────────┘   │
+            │                   │                  │
+            │   window.cluster  │                  │
+            │   (contextBridge) │                  │
+            └────────┬──────────┘                  │
+                     │                             │
+    ┌────────────────┼────────────────────────┐    │
+    │     NPM PACKAGES (typed, isolated)       │    │
+    │                                        │    │
+    │  ┌──────────┐ ┌──────────┐ ┌────────┐ │    │
+    │  │ agent-core│ │tool-rtime│ │storage │ │    │
+    │  │          │ │          │ │        │ │    │
+    │  │AgentLoop │ │Registry  │ │Sessions│ │    │
+    │  │Coordinator│ │15+Tools │ │Checkpts│ │    │
+    │  │Provider  │ │Safety    │ │Backups │ │    │
+    │  └────┬─────┘ └────┬─────┘ └───┬────┘ │    │
+    │       │            │           │       │    │
+    │  ┌────┴─────┐ ┌────┴─────┐ ┌───┴────┐ │    │
+    │  │workspace │ │ shared   │ │memory  │ │    │
+    │  │         │ │types/util│ │store   │ │    │
+    │  │detect   │ │emitter   │ │vector  │ │    │
+    │  │manifest │ │paths     │ │extract │ │    │
+    │  └──────────┘ └──────────┘ └────────┘ │    │
+    │                                        │    │
+    │  ┌──────────┐ ┌──────────┐ ┌────────┐ │    │
+    │  │task-eng  │ │context   │ │ui-kit  │ │    │
+    │  │         │ │engine    │ │        │ │    │
+    │  │DAG+exec  │ │ranking   │ │DiffView│ │    │
+    │  │retry/cancel│ │chunking │ │Panel  │ │    │
+    │  └──────────┘ └──────────┘ └────────┘ │    │
+    └────────────────────────────────────────┘    │
+                                                     │
+                                          ┌────────┴────────┐
+                                          │ OpenAI-Compatible│
+                                          │ Chat Completions │
+                                          │    API Endpoint   │
+                                          └─────────────────┘
+```
+
+---
 
 ## Quick Start
 
-### 1. Install Dependencies
+### Prerequisites
+
+| Requirement | Minimum |
+|-------------|---------|
+| Node.js | >= 20.10.0 |
+| npm | Bundled with Node |
+| Git | Any version |
+
+### Installation
+
 ```bash
+git clone <repo-url>
+cd "C:\Coding Agent"
 npm install
 ```
 
-### 2. Configure Environment (Optional)
+### Configuration
+
 ```bash
+# Option 1: Environment variables
 cp .env.example .env
-# Edit CLUSTER_API_KEY / OPENAI_API_KEY, CLUSTER_BASE_URL, CLUSTER_MODEL
-# Or configure directly inside the app on the Provider / Model page
+# Edit .env → set CLUSTER_API_KEY and CLUSTER_BASE_URL
+
+# Option 2: In-app (Provider page, press 9)
+# Option 3: Config files (~/.cluster/config.json or cluster.config.json)
 ```
 
-### 3. Launch Development Desktop App
+### Run
+
 ```bash
-npm run dev
-# or: npm run electron:dev
+npm run electron:dev     # Development mode (Vite + tsc watch + Electron)
+npm run electron:build   # Production build
+npm run electron:package # Windows installer (.exe)
 ```
 
-### 4. Build Production Bundle
-```bash
-npm run electron:build
+---
+
+## Configuration
+
+Cluster resolves config from **4 layers** (lowest to highest priority):
+
+| Layer | Location | Example |
+|-------|----------|---------|
+| 1. Defaults | Hardcoded | `model: "gpt-4o-mini"`, `maxIterations: 40` |
+| 2. Environment | `.env` / shell | `CLUSTER_API_KEY=sk-...` |
+| 3. Global | `~/.cluster/config.json` | Project-wide settings |
+| 4. Project | `<root>/cluster.config.json` | Per-workspace overrides |
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CLUSTER_API_KEY` | — | LLM API key (or `OPENAI_API_KEY`) |
+| `CLUSTER_BASE_URL` | `https://api.openai.com/v1` | Chat completions endpoint base |
+| `CLUSTER_MODEL` | `gpt-4o-mini` | Model name |
+| `CLUSTER_TOOL_MODE` | `auto` | `auto` · `native` · `text` |
+| `CLUSTER_MAX_ITERATIONS` | `40` | Max agent loop iterations |
+| `CLUSTER_COMMAND_TIMEOUT_MS` | `120000` | Command timeout (2 min) |
+| `CLUSTER_CONFIRM_DESTRUCTIVE` | `true` | Require confirmation for destructive actions |
+| `CLUSTER_CONFIRM_COMMANDS` | `false` | Paranoid mode: confirm ALL commands |
+| `CLUSTER_HOME` | `~/.cluster/` | Override storage directory |
+
+---
+
+## Tool Reference
+
+| Tool | Category | Risk | Purpose |
+|------|----------|------|---------|
+| `workspace_info` | Reading | safe | Project metadata, git state, languages |
+| `list_files` | Reading | safe | Glob-based file listing |
+| `read_file` | Reading | safe | Text file with optional line range |
+| `search_text` | Reading | safe | Literal or regex search across project |
+| `git_status` | Git | safe | Branch, dirty state, staged/unstaged counts |
+| `git_diff` | Git | safe | Unified diff of working tree |
+| `write_file` | Writing | varies | Create or overwrite files (with backup) |
+| `patch_file` | Writing | varies | Surgical find-and-replace edits |
+| `run_command` | Execution | varies | Shell command with live output streaming |
+| `verify` | Verification | caution | Auto-discover and run build/test/lint |
+| `discover_tests` | Verification | safe | Find test files and commands |
+| `checkpoint_create` | Safety | safe | Snapshot current files |
+| `checkpoint_list` | Safety | safe | List available checkpoints |
+| `checkpoint_rollback` | Safety | destructive | Restore files from a checkpoint |
+| `diff_preview` | Review | safe | Preview diff before applying |
+| `apply_hunks` | Review | caution | Apply selected hunks from a diff |
+| `patch_history` | Review | safe | View patch operation history |
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+K` / `Cmd+K` | Open command palette |
+| `Ctrl+O` / `Cmd+O` | Open workspace folder |
+| `Ctrl+G` / `Cmd+G` | Create checkpoint snapshot |
+| `Ctrl+C` (when running) | Cancel agent execution |
+| `Escape` | Close modal / decline confirmation |
+| `1` – `9`, `0` | Navigate to page |
+| `Enter` | Send message |
+| `Shift+Enter` | Newline in composer |
+
+---
+
+## Project Structure
+
 ```
-
-### 5. Package Windows Executable (.exe)
-```bash
-npm run electron:package
-# Creates standalone installer in apps/electron/release/Cluster-Setup-0.1.0.exe
-# Launches directly without requiring a terminal.
-```
-
-## Configuration (4 layers, increasing priority)
-
-1. Built-in defaults (`gpt-4o-mini`, 120s timeout, 40 iterations)
-2. Env: `CLUSTER_API_KEY` / `OPENAI_API_KEY`, `CLUSTER_BASE_URL`, `CLUSTER_MODEL`, `CLUSTER_TOOL_MODE`, `CLUSTER_MAX_ITERATIONS`, `CLUSTER_COMMAND_TIMEOUT_MS`, `CLUSTER_CONFIRM_DESTRUCTIVE`, etc.
-3. `~/.cluster/config.json`
-4. `cluster.config.json` (project root)
-
-```jsonc
-// cluster.config.json
-{
-  "model": "gpt-4o",
-  "temperature": 0.1,
-  "commands": { "build": "npm run build", "test": "npm test --silent" },
-  "ignore": ["dist/**", "node_modules/**"],
-  "extraInstructions": "Always run typecheck after edits."
-}
-```
-
-## How a request flows (shared)
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Renderer (Electron) or TUI ── prompt ──▶ agent-core ──▶ tool-runtime│
-│     ▲                           │                 │                │
-│     └──────── events ◀── Emitter ◀──────── workspace/storage      │
-└─────────────────────────────────────────────────────────────────┘
-```
-1. UI hands prompt to **agent-core** (`AgentLoop` for single-agent, `Coordinator` + `TaskEngine` for multi-agent).
-2. **ModelProvider** (`packages/agent-core/src/provider.ts`) streams `/chat/completions` (SSE, native tool_calls, fallback to fenced-JSON text protocol).
-3. **ToolRegistry** validates via `zod`, emits `tool:start`/`tool:end`/`tool:output` (live chunk streaming for `run_command`).
-4. UI subscribes to the event stream (TUI via `useAgent` hooks, Electron via `preload` → `ipcRenderer` → `window.cluster.agent.on*`).
-5. Every turn is persisted to **storage** (`SessionStore` via `lowdb` JSON under `~/.cluster/db.json`, debounced 150ms, flushed at turn end). `resume`/`Ctrl+R` rehydrates.
-
-## Layout
-
-```
-.
-├── apps/
-│   ├── tui/                Ink TUI — reference impl (preserved)
-│   │   ├── src/cli.ts          commander entry (start/resume/sessions/config/doctor)
-│   │   ├── src/bootstrap.ts    assembles config + stores + coordinator
-│   │   ├── src/App.tsx         header + split pane + palette + composer
-│   │   ├── src/hooks/useAgent.ts  agent controller (single + multi, events→state)
-│   │   └── src/components/     ChatView, Composer, TaskBoard, DiffPanel, AgentPanel, Verify, Checkpoints, Memory, Logs…
-│   └── electron/           Electron desktop — parity build
-│       ├── src/main/index.ts   BrowserWindow, IPC handlers (sessions/workspace/config/checkpoints/agent sim), security
-│       ├── src/preload/index.ts contextBridge → window.cluster
-│       ├── src/renderer/       React + Vite + Tailwind premium dark UI
-│       │   ├── App.tsx         Sidebar + TopBar + Agent tabs + TaskCards + Chat + Diff + Tabs (Tasks/Diff/Verify/Logs/Checkpoints/Memory/Background) + Composer + StatusBar + Palette + Settings
-│       │   ├── components/     Sidebar, TopBar, TaskCards, DiffViewer, CommandPalette, Composer
-│       │   ├── hooks/          useSessions, useAgent (IPC-backed)
-│       │   └── styles/global.css  grid-bg, scrollbars, glows
-│       ├── vite.config.ts, tailwind.config.js, postcss.config.js
-│       └── package.json        build + electron-builder (win nsis → .exe)
+cluster-cli/
+├── apps/electron/            Electron desktop app
+│   ├── src/main/             BrowserWindow + IPC handlers
+│   ├── src/preload/          contextBridge → window.cluster
+│   └── src/renderer/         React 18 + Vite + Tailwind
 ├── packages/
-│   ├── agent-core/         provider, orchestrator, coordinator, agents/*, stateMachine, history
-│   ├── tool-runtime/       registry + tools (read_file, write_file, patch_file, run_command live, git_*, verify, checkpoints, diffReview)
-│   ├── workspace/          detectProjectRoot, loadWorkspaceInfo, git, watchWorkspace, manifest, context
-│   ├── storage/            SessionStore (lowdb), checkpoints (snapshot/rollback), backups, patchHistory, paths
-│   ├── shared/             types (Session/Message/ToolCall/Edit/TaskGraph…), events, tasks, diff, logger, paths
-│   ├── task-engine/        TaskGraphStore (DAG) + TaskEngine (batch-parallel, concurrency, retry, pause/cancel)
-│   ├── context-engine/     repoIntelligence, chunking, ranking, symbols
-│   ├── memory/             MemoryStore (project vs session)
-│   └── ui-kit/             tokens
-├── docs/
-│   ├── ARCHITECTURE.md     full map before migration
-│   └── FEATURE_AUDIT.md    TUI → Electron parity checklist
-├── tsconfig.base.json / tsconfig.json (project references include apps/electron)
-└── package.json            workspaces + scripts (build, electron:dev/build/package)
+│   ├── agent-core/           LLM client, agent loop, coordinator
+│   ├── tool-runtime/         Tool registry, 15+ tools, safety
+│   ├── storage/              Session persistence, checkpoints
+│   ├── workspace/            Project detection, manifest parsing
+│   ├── shared/               Types, events, IDs, path utils
+│   ├── task-engine/          DAG scheduling, parallel execution
+│   ├── context-engine/       Repo intelligence, file ranking
+│   ├── memory/               Persistent memory, vector search
+│   └── ui-kit/               Reusable React components
+├── docs/                     Legacy architecture & audit docs
+├── scripts/                  Build & utility scripts
+└── package.json              Workspace root
 ```
 
-## Tools available to the agent (both shells)
-
-| Tool | Purpose | Risk |
-|------|---------|------|
-| `workspace_info` | project kind/pm, git branch, languages | safe |
-| `list_files` | glob | safe |
-| `read_file` | text file (binary + range) | safe |
-| `search_text` | literal/regex across project | safe |
-| `git_status` / `git_diff` | working tree | safe |
-| `write_file` | create/overwrite | varies |
-| `patch_file` | targeted find/replace (preferred) | varies |
-| `run_command` | shell with live `tool:output` streaming | varies |
-| `verify` / `discover_tests` | build/test/lint discovery | varies |
-| `checkpoint_create/list/rollback` | snapshot + rollback | safe |
-| `diff_preview/applyHunks/patchHistory` | hunk-level review | safe |
-
-Risk via `packages/tool-runtime/src/safety.ts`: `rm -rf`, `git push --force` etc. always prompt. Backups under `~/.cluster/backups/<session>/<call>/…`.
-
-## Electron desktop feature map (mirrors TUI)
-
-- **Sessions:** left sidebar lists 50 recents, active highlighted with `3 agents` badge, idle/running dots, `+ New session` → `window.cluster.sessions.create`
-- **Multi-agent:** header `cluster run --parallel 3`, 3 cards (Cora writing / Milo reviewing / Zephyr planning) with progress bars + glows, file locks, checkpoint-before-edit
-- **Task planning:** `Task board` tab — stats, timeline batches (topological levels), by-agent grouping, iconForStatus
-- **Messages & tools:** Chat feed (user/assistant/error), ToolCallCard (name, risk color, duration), streaming cursor `▌`, live output panel
-- **Diff/review:** `Diff` tab — unified diff, `+18 -3`, hunk colors, apply/rollback, `patchHistory` link
-- **Logs & background:** `Logs` tab (activity 200 cap) + `Background` tab (run_command streaming, `tool:output` capped 32k)
-- **Verification:** `Verify` tab — build/test/lint with passed/failed, duration, auto-fix attempts (mirrors `VerificationPanel`)
-- **Checkpoints:** `Checkpoints` tab — `listCheckpoints`, `createCheckpoint` (Ctrl+G), `rollbackToCheckpoint`, gitHead + hash
-- **Memory:** `Memory` tab — project vs session recall (limit 10) from `MemoryStore`
-- **Provider/model:** top bar model pill + Settings modal (workspace, model, baseUrl, key presence) — mirrors `doctor`/`config`
-- **Workspace:** top bar `cluster — ~/projects/atlas — zsh`, `detectProjectRoot` + `loadWorkspaceInfo` via IPC
-- **Command palette:** `Ctrl/Cmd+K` — tasks/diff/verify/logs/checkpoints/memory/clear/multi/new-session/checkpoint/settings/verify/background
-- **Slash commands:** `/help /plan /edits /tasks /diff /verify /agents /memory /checkpoint /multi /checkpoint-create /rollback /status` (handled in `handleSlash`)
-- **Keyboard shortcuts:** `Enter` send, `Shift+Enter` newline, `Esc` close, `Ctrl+C` cancel→quit, `Tab` focus cycle, `1-8` tab switch, `Ctrl+G` checkpoint, `Ctrl+K` palette
-- **States:** `idle/planning/thinking/reading/editing/running/verifying/summarizing/waiting/done/error/cancelled` + task `pending/ready/blocked/running/paused/done/failed/cancelled`
-
-See `docs/FEATURE_AUDIT.md` for the full checklist.
-
-## Visual direction (Electron)
-
-Premium dark desktop, not terminal:
-
-- Very dark bg `#07070a` + subtle grid lines `rgba(255,255,255,0.025)` 32px
-- Surfaces `#0f0f11` / `#111113` / `#18181b`, thin borders `#232326` / `#2a2a2e`, rounded `xl` cards, `shadow-cluster`
-- Accent `emerald #00d9a5` (writing), `amber #f59e0b` (reviewing), `violet #8b5cf6` (planning), glows `0 0 20px …`
-- Mono for diffs/code (`JetBrains Mono`), sans for UI (`Inter`)
-- Hierarchy: sidebar 260px, top bar 36px (drag-region), agent tabs 36px, secondary tabs, scrollable central workspace, composer, status bar 28px
-- No clutter/ghost text/jitter — fixed heights, `overflow-hidden` splits, `backdrop-blur` overlays
+---
 
 ## Development
 
 ```bash
-npm run typecheck          # tsc -b
-npm run build              # tsc -b → all dist
-npm run dev                # TUI: tsx apps/tui/src/cli.ts
-npm test                   # vitest run
-npm run test:watch         # vitest
+npm run typecheck       # TypeScript check across all packages
+npm run build           # Full build (all packages + electron)
+npm test                # Run test suite
+npm run test:watch      # Watch mode
 
 # Electron
-npm run electron:dev       # vite@5173 + tsc --watch + electron
-npm run electron:build     # tsc (main+preload) + vite build → apps/electron/dist
-npm run electron:package   # + electron-builder --win --x64 → release/Cluster-Setup-*.exe
+npm run electron:dev    # Dev mode with hot reload
+npm run electron:build  # Production build
+npm run electron:package # Windows .exe installer
 ```
 
-Tests live as `*.test.ts` next to code (real behavior, not mocks).
+---
 
-## Troubleshooting
+## Documentation
 
-- `✖ api key (not set)` — `CLUSTER_API_KEY` or `OPENAI_API_KEY` or `cluster config-set apiKey …` (Electron: Settings modal shows key presence)
-- `endpoint does not support function calling` — auto-fallback to text protocol (slower but complete)
-- `Refused to access "<path>" outside project root` — sandboxed to `detectProjectRoot`; use `--cwd`
-- Sessions missing — `CLUSTER_HOME=/some/path cluster start` (Electron respects same via `resolveStoragePaths`)
-- Wrong project root — `--cwd <dir>` (Electron: re-detect via `window.cluster.workspace.detect()`)
-- Electron `dist/electron.exe` missing — re-run `npm install` (postinstall downloads binary); packaging needs Windows + network
+Full documentation lives in [`/documentation/`](./documentation/):
 
-## What Phase 2 already includes (beyond Phase 1 scope)
+| Doc | Topic |
+|-----|-------|
+| [Overview](./documentation/overview.md) | What Cluster is, features, architecture |
+| [System Architecture](./documentation/architecture/system.md) | Module breakdown, IPC flow, process model |
+| [Package Map](./documentation/architecture/packages.md) | Every package explained |
+| [Data Flow](./documentation/architecture/data-flow.md) | How data moves through the system |
+| [Execution Flow](./documentation/workflow/execution-flow.md) | Request → response lifecycle |
+| [Agent Loop](./documentation/workflow/agent-loop.md) | Single-agent deep dive |
+| [Multi-Agent](./documentation/workflow/multi-agent.md) | Coordinator, TaskEngine, roles |
+| [Data Models](./documentation/reference/data-model.md) | Session, Message, ToolCall, Edit types |
+| [Memory System](./documentation/memory/memory-system.md) | Extraction, retrieval, storage |
+| [Provider System](./documentation/provider/provider-system.md) | LLM integration, config, fallback |
+| [Tools](./documentation/tools/tool-runtime.md) | All 15+ tools documented |
+| [Checkpoints](./documentation/checkpoints/checkpoints.md) | Snapshots and rollback |
+| [Context Engine](./documentation/context/context-engine.md) | Repo intelligence & chunking |
+| [Pages](./documentation/ui/pages.md) | All 10 views documented |
+| [Components](./documentation/ui/components.md) | UI component reference |
+| [Hooks](./documentation/ui/hooks.md) | useAgent, useSessions, IPC API |
+| [Background Jobs](./documentation/operations/background-jobs.md) | Job lifecycle and tracking |
+| [Packaging](./documentation/build/packaging.md) | Build, package, distribute |
+| [Configuration](./documentation/configuration/config.md) | 4-layer config resolution |
+| [Developer Guide](./documentation/guide/developer-guide.md) | How to extend Cluster |
+| [Troubleshooting](./documentation/troubleshooting/troubleshooting.md) | Common issues and fixes |
+| [Contribution Guide](./documentation/guide/contribution-guide.md) | Conventions, style, PR checklist |
 
-- Multi-agent orchestration (`Coordinator` + `TaskEngine` + file locks)
-- `TaskGraphStore` DAG, parallel batches, retry/backoff, pause/cancel
-- Checkpoints & rollback, patchHistory & hunk review
-- Verification loop & auto-fix suggestion
-- MemoryStore (project/session), ContextEngine (repo intelligence)
-
-## Migration notes
-
-1. **Analyze first** — `docs/ARCHITECTURE.md` before any code move.
-2. **Restore TUI** if deleted — `git rebase`/`cherry-pick`/`reset` (here TUI was intact, so preserved).
-3. **Learn TUI** end-to-end — session flow, agent orchestration, events, tools, persistence, checkpoints, shortcuts (see `docs/FEATURE_AUDIT.md`).
-4. **Migrate to Electron** with parity — reuse `packages/*` directly, IPC for fs/commands/storage, renderer only for UI.
-5. **Remove TUI only after parity** — TUI still ships (`npm start`).
+---
 
 ## License
 
-MIT.
+MIT
