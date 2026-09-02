@@ -237,6 +237,60 @@ function registerIpc() {
     return res.filePaths[0] ?? null;
   });
 
+  // Skills IPC handlers
+  let skillsStoreInstance: any = null;
+  let skillsRuntimeInstance: any = null;
+  async function getSkills() {
+    if (!skillsStoreInstance) {
+      const { SkillsStore, SkillsRuntime } = await import('@cluster/skills');
+      skillsStoreInstance = new SkillsStore();
+      await skillsStoreInstance.init();
+      skillsRuntimeInstance = new SkillsRuntime(skillsStoreInstance);
+    }
+    return { store: skillsStoreInstance, runtime: skillsRuntimeInstance };
+  }
+
+  ipcMain.handle('skills:list', async () => {
+    const { store } = await getSkills();
+    return store.listInstalled();
+  });
+  ipcMain.handle('skills:marketplace', async (_e, filter) => {
+    const { store } = await getSkills();
+    return store.listMarketplace(filter);
+  });
+  ipcMain.handle('skills:install', async (_e, id: string) => {
+    const { store } = await getSkills();
+    return store.install(id);
+  });
+  ipcMain.handle('skills:uninstall', async (_e, id: string) => {
+    const { store } = await getSkills();
+    return store.uninstall(id);
+  });
+  ipcMain.handle('skills:update', async (_e, id: string) => {
+    const { store } = await getSkills();
+    return store.update(id);
+  });
+  ipcMain.handle('skills:toggle', async (_e, opts: { id: string; enabled: boolean }) => {
+    const { store } = await getSkills();
+    return store.toggle(opts.id, opts.enabled);
+  });
+  ipcMain.handle('skills:pin', async (_e, opts: { id: string; pinned: boolean }) => {
+    const { store } = await getSkills();
+    return store.pin(opts.id, opts.pinned);
+  });
+  ipcMain.handle('skills:createCustom', async (_e, data: any) => {
+    const { store } = await getSkills();
+    return store.createCustom(data);
+  });
+  ipcMain.handle('skills:history', async (_e, limit?: number) => {
+    const { store } = await getSkills();
+    return store.getHistory(limit);
+  });
+  ipcMain.handle('skills:stats', async () => {
+    const { store } = await getSkills();
+    return store.stats();
+  });
+
     // Real agent execution — wired to SessionStore, ModelProvider, ToolRegistry, Coordinator, TaskEngine
   const activeControllers = new Map<string, AbortController>();
   const jobRegistry = new Map<string, { id: string; command: string; cwd: string; status: 'running'|'done'|'failed'|'stopped'; pid?: number; port?: number; output: string; startedAt: string; durationMs?: number; controller?: AbortController }>();
@@ -247,6 +301,174 @@ function registerIpc() {
     if (!session) throw new Error('Session not found');
     const wc = event.sender;
     const emit = (channel: string, data: any) => wc.send(channel, data);
+
+    // Resolve Skills & Slash Commands
+    const { store: sStore, runtime: sRuntime } = await getSkills();
+    const resolution = await sRuntime.resolveCommand(payload.text);
+
+    if (resolution.type === 'system') {
+      const { createId } = await import('@cluster/shared');
+      const msgId = createId('msg');
+      let content = '';
+      if (resolution.action === 'list') {
+        const installed = await sStore.listInstalled();
+        content = [
+          '### ⚡ Installed Skills in Cluster',
+          `You have **${installed.length} active skills** installed:`,
+          '',
+          ...installed.map(
+            (s: any) =>
+              `- **/${s.manifest.invocationName}** — ${s.manifest.displayName} (${s.manifest.category}) [v${s.manifest.version}]`
+          ),
+          '',
+          '*Type `/<invocationName>` to trigger any skill, or `/marketplace` to browse available skills.*',
+        ].join('\n');
+      } else if (resolution.action === 'marketplace') {
+        const all = await sStore.listMarketplace();
+        content = [
+          '### 🛍️ Cluster Skill Marketplace',
+          `Browsing **${all.length} available skills** across 16 categories:`,
+          '',
+          ...all
+            .slice(0, 10)
+            .map(
+              (s: any) =>
+                `- **/${s.invocationName}** (${s.displayName}) — *${s.isInstalled ? '✓ Installed' : 'Available'}*`
+            ),
+          '',
+          '*Open the dedicated **Skills** tab in the sidebar for the full visual catalog.*',
+        ].join('\n');
+      } else if (resolution.action === 'install' && resolution.target) {
+        const res = await sStore.install(resolution.target);
+        content = res.ok
+          ? `✓ Successfully installed **${res.skill?.manifest.displayName}**!\nYou can now invoke it with \`/${res.skill?.manifest.invocationName}\`.`
+          : `⚠️ Failed to install skill: ${res.error}`;
+      } else if (resolution.action === 'remove' && resolution.target) {
+        const ok = await sStore.uninstall(resolution.target);
+        content = ok
+          ? `✓ Successfully uninstalled skill "${resolution.target}".`
+          : `⚠️ Skill "${resolution.target}" was not installed.`;
+      }
+
+      store.appendMessage(payload.sessionId, {
+        id: msgId,
+        sessionId: payload.sessionId,
+        role: 'assistant',
+        content,
+        kind: 'summary',
+        createdAt: new Date().toISOString(),
+      } as any);
+      emit('agent:message', {
+        sessionId: payload.sessionId,
+        message: {
+          id: msgId,
+          sessionId: payload.sessionId,
+          role: 'assistant',
+          content,
+          kind: 'summary',
+          createdAt: new Date().toISOString(),
+        },
+      });
+      emit('agent:state', {
+        sessionId: payload.sessionId,
+        state: { phase: 'done', label: 'Done', iteration: 1, maxIterations: 1 },
+      });
+      emit('agent:done', {
+        sessionId: payload.sessionId,
+        summary: content,
+        usage: { prompt: 0, completion: 0, total: 0 },
+        cancelled: false,
+        iterations: 1,
+      });
+      await store.flush();
+      return { ok: true, system: true };
+    }
+
+    if (resolution.type === 'missing') {
+      const { createId } = await import('@cluster/shared');
+      const msgId = createId('msg');
+      const content = resolution.suggestion
+        ? `⚠️ Skill **/${resolution.command}** is not installed.\n\n` +
+          `Found in Marketplace: **${resolution.suggestion.displayName}** (${resolution.suggestion.category})\n` +
+          `${resolution.suggestion.description}\n\n` +
+          `To install it, type: \`/install ${resolution.suggestion.id}\` or open the **Skills** tab.`
+        : `⚠️ Unknown skill or command **/${resolution.command}**.\nType \`/skills\` to view installed skills or \`/marketplace\` to discover new skills.`;
+
+      store.appendMessage(payload.sessionId, {
+        id: msgId,
+        sessionId: payload.sessionId,
+        role: 'assistant',
+        content,
+        kind: 'warning',
+        createdAt: new Date().toISOString(),
+      } as any);
+      emit('agent:message', {
+        sessionId: payload.sessionId,
+        message: {
+          id: msgId,
+          sessionId: payload.sessionId,
+          role: 'assistant',
+          content,
+          kind: 'warning',
+          createdAt: new Date().toISOString(),
+        },
+      });
+      emit('agent:state', {
+        sessionId: payload.sessionId,
+        state: { phase: 'done', label: 'Done', iteration: 1, maxIterations: 1 },
+      });
+      emit('agent:done', {
+        sessionId: payload.sessionId,
+        summary: content,
+        usage: { prompt: 0, completion: 0, total: 0 },
+        cancelled: false,
+        iterations: 1,
+      });
+      await store.flush();
+      return { ok: true, missing: true };
+    }
+
+    let activePrompt = payload.text;
+    let extraSkillInstructions = '';
+    if (resolution.type === 'skill') {
+      activePrompt = resolution.augmentedPrompt;
+      extraSkillInstructions = resolution.instructions;
+      // Record invocation
+      await sStore.recordInvocation(
+        resolution.skill.manifest.id,
+        resolution.params,
+        payload.text,
+        payload.sessionId
+      );
+      emit('agent:skill:invoked', {
+        sessionId: payload.sessionId,
+        skill: resolution.skill,
+        params: resolution.params,
+        rawCommand: payload.text,
+      });
+      const { createId } = await import('@cluster/shared');
+      const skillMsgId = createId('msg');
+      const ackContent = `⚡ **Invoked Skill: ${resolution.skill.manifest.displayName}** (\`/${resolution.skill.manifest.invocationName}\`)\n*Permissions approved: ${resolution.skill.manifest.requiredPermissions.join(', ')}*`;
+      store.appendMessage(payload.sessionId, {
+        id: skillMsgId,
+        sessionId: payload.sessionId,
+        role: 'assistant',
+        content: ackContent,
+        kind: 'info',
+        createdAt: new Date().toISOString(),
+      } as any);
+      emit('agent:message', {
+        sessionId: payload.sessionId,
+        message: {
+          id: skillMsgId,
+          sessionId: payload.sessionId,
+          role: 'assistant',
+          content: ackContent,
+          kind: 'info',
+          createdAt: new Date().toISOString(),
+        },
+      });
+    }
 
     // Load real workspace and config
     const projectRoot = session.projectRoot;
@@ -286,8 +508,9 @@ function registerIpc() {
         else if (ev==='error') emit('agent:error', { sessionId: payload.sessionId, error: data })
         else if (ev==='done') { store.updateState(payload.sessionId, { phase: data.cancelled?'cancelled':'done', finishedAt: new Date().toISOString(), usage: data.usage } as any); emit('agent:done', { sessionId: payload.sessionId, ...data }); store.flush().catch(()=>{}); }
         else if (ev==='delta') emit('agent:delta', { sessionId: payload.sessionId, text: data.text })
+        else if (ev==='file:progress') emit('agent:file:progress', { sessionId: payload.sessionId, ...data });
       });
-      ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done'].forEach(forward);
+      ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done','file:progress'].forEach(forward);
       events.emit('plan', { goal: payload.text, steps: [{ id: createId('step'), text: `Analyse: ${payload.text.slice(0,60)}`, status:'pending' }, { id: createId('step'), text: 'Execute file operations', status:'pending' }, { id: createId('step'), text: 'Verify', status:'pending' }], createdAt: new Date().toISOString() });
       events.emit('state', { phase:'thinking', label:'Local demo', iteration:1, maxIterations:3 });
       // Do a REAL file read via tool
@@ -367,8 +590,9 @@ function registerIpc() {
       else if (ev==='done') { store.updateState(payload.sessionId, { phase: data.cancelled?'cancelled':'done', finishedAt: new Date().toISOString(), usage: data.usage } as any); emit('agent:done', { sessionId: payload.sessionId, ...data }); store.flush().catch(()=>{}); }
       else if (ev==='delta') emit('agent:delta', { sessionId: payload.sessionId, text: data.text })
       else if (ev==='memory:recalled') emit('agent:memory:recalled', { sessionId: payload.sessionId, memories: data.memories });
+      else if (ev==='file:progress') emit('agent:file:progress', { sessionId: payload.sessionId, ...data });
     });
-    ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done','memory:recalled'].forEach(forwardReal);
+    ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done','memory:recalled','file:progress'].forEach(forwardReal);
 
     const needConfirm = async (req:any)=>{
       emit('agent:confirm', { sessionId: payload.sessionId, request: req });
@@ -411,8 +635,21 @@ function registerIpc() {
         store.appendMessage(payload.sessionId, summaryMsg);
         emit('agent:message', { sessionId: payload.sessionId, message: summaryMsg });
       } else {
-        const loop = new AgentLoop({ config: cfg, provider, registry, projectRoot, workspace, backupsDir: paths.backupsDir, sessionId: payload.sessionId, history, events, requestConfirm: needConfirm, memory });
-        await loop.run(payload.text, controller.signal);
+        const loop = new AgentLoop({
+          config: cfg,
+          provider,
+          registry,
+          projectRoot,
+          workspace,
+          backupsDir: paths.backupsDir,
+          sessionId: payload.sessionId,
+          history,
+          events,
+          requestConfirm: needConfirm,
+          memory,
+          extraInstructions: [cfg?.extraInstructions, extraSkillInstructions].filter(Boolean).join('\n\n'),
+        });
+        await loop.run(activePrompt, controller.signal);
       }
     } catch (e:any) {
       const errMsg = {

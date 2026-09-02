@@ -15,6 +15,7 @@ import { LogsPage } from './pages/LogsPage';
 import { BackgroundPage } from './pages/BackgroundPage';
 import { CheckpointsPage } from './pages/CheckpointsPage';
 import { MemoryPage } from './pages/MemoryPage';
+import { SkillsPage } from './pages/SkillsPage';
 import { ProviderPage } from './pages/ProviderPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -327,6 +328,10 @@ export default function App() {
       case '/memory':
         setCurrentPage('memory');
         return true;
+      case '/skills':
+      case '/marketplace':
+        setCurrentPage('skills');
+        return true;
       case '/provider':
       case '/model':
         setCurrentPage('provider');
@@ -365,6 +370,7 @@ export default function App() {
       { id: 'nav:background', label: 'Go to Background Jobs', detail: 'Inspect processes & servers · 6', hotkey: '6' },
       { id: 'nav:checkpoints', label: 'Go to Checkpoints', detail: 'Restore snapshots & rollbacks · 7', hotkey: '7' },
       { id: 'nav:memory', label: 'Go to Memory', detail: 'Project & session knowledge · 8', hotkey: '8' },
+      { id: 'nav:skills', label: 'Go to Skills & Marketplace', detail: 'Discover, install, and manage skills · S', hotkey: 'S' },
       { id: 'nav:provider', label: 'Go to Provider & Model', detail: 'Configure LLM inference & API key · 9', hotkey: '9' },
       { id: 'nav:settings', label: 'Go to Settings', detail: 'Workspace directory & environment · 0', hotkey: '0' },
     ];
@@ -493,6 +499,8 @@ export default function App() {
               onOpenTasks={() => setCurrentPage('tasks')}
               onOpenDiffs={() => setCurrentPage('diff')}
               recalledMemories={agent.recalledMemories}
+              fileProgress={agent.fileProgress}
+              activeSkill={agent.activeSkill}
             />
           )}
 
@@ -537,6 +545,17 @@ export default function App() {
             <MemoryPage
               sessionId={activeSessionId}
               projectRoot={projectRoot}
+            />
+          )}
+
+          {currentPage === 'skills' && (
+            <SkillsPage
+              onNavigateToWorkspace={(cmd) => {
+                setCurrentPage('workspace');
+                if (cmd) {
+                  agent.submit(cmd);
+                }
+              }}
             />
           )}
 

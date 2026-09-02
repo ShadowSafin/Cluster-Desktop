@@ -16,6 +16,10 @@ const schema = z.object({
     .boolean()
     .optional()
     .describe('Fail if the file already exists. Use this to avoid clobbering existing code.'),
+  reason: z
+    .string()
+    .optional()
+    .describe('Short explanation of why this file is being created or modified (e.g. "needed for the new page layout").'),
 });
 
 type Input = z.infer<typeof schema>;
@@ -74,10 +78,13 @@ export const writeFileTool = defineTool<Input>({
 
       const diff = formatUnifiedDiff(target.display, previous, input.content);
       const { additions, deletions } = diffLines(previous, input.content);
+      const lineCount = input.content.split('\n').length;
+      const sizeBytes = Buffer.byteLength(input.content, 'utf8');
 
+      const reasonSuffix = input.reason ? `\nWhy: ${input.reason}` : '';
       const summary = exists
-        ? `Updated ${target.display} (+${additions} -${deletions})`
-        : `Created ${target.display} (+${additions} lines)`;
+        ? `Updated ${target.display} (+${additions} -${deletions} lines, ${lineCount} lines total)${reasonSuffix}`
+        : `Created ${target.display} (+${additions} lines)${reasonSuffix}`;
 
       return okResult(
         summary,
@@ -86,6 +93,9 @@ export const writeFileTool = defineTool<Input>({
           created: !exists,
           additions,
           deletions,
+          lineCount,
+          sizeBytes,
+          reason: input.reason,
           backupPath,
           diff,
         },

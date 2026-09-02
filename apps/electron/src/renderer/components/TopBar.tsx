@@ -37,6 +37,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     background: 'Background Jobs',
     checkpoints: 'Checkpoints',
     memory: 'Memory',
+    skills: 'Skills & Marketplace',
     provider: 'Provider Setup',
     settings: 'Settings',
   };

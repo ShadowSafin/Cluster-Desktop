@@ -10,6 +10,7 @@ export type PageId =
   | 'background'
   | 'checkpoints'
   | 'memory'
+  | 'skills'
   | 'provider'
   | 'settings';
 
@@ -75,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'background', label: 'Background Jobs', shortcut: '6', badge: jobCount > 0 ? jobCount : undefined },
     { id: 'checkpoints', label: 'Checkpoints', shortcut: '7' },
     { id: 'memory', label: 'Memory', shortcut: '8' },
+    { id: 'skills', label: 'Skills Hub', shortcut: 'S' },
     { id: 'provider', label: 'Provider / Model', shortcut: '9' },
     { id: 'settings', label: 'Settings', shortcut: '0' },
   ];

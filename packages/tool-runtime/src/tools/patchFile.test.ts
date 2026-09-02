@@ -239,6 +239,55 @@ describe('write_file', () => {
     expect(outcome.result.error?.code).toBe('already_exists');
     expect(await read('a.ts')).toBe('old\n');
   });
+
+  it('records reason, lineCount, and sizeBytes when creating a file with write_file', async () => {
+    const outcome = await registry.execute(
+      'write_file',
+      { path: 'header.tsx', content: 'export const Header = () => <div>Header</div>;\n', reason: 'needed for the new page layout' },
+      makeContext(),
+    );
+    expect(outcome.result.ok).toBe(true);
+    expect(outcome.result.output).toContain('Why: needed for the new page layout');
+    expect(outcome.result.data).toMatchObject({
+      created: true,
+      reason: 'needed for the new page layout',
+      lineCount: 2,
+    });
+  });
+
+  it('records reason when patching a file with patch_file', async () => {
+    await write('widget.tsx', 'const a = 1;\n');
+    const outcome = await registry.execute(
+      'patch_file',
+      {
+        path: 'widget.tsx',
+        edits: [{ oldText: 'const a = 1;\n', newText: 'const a = 2;\n' }],
+        reason: 'updating constant value',
+      },
+      makeContext(),
+    );
+    expect(outcome.result.ok).toBe(true);
+    expect(outcome.result.output).toContain('Why: updating constant value');
+    expect(outcome.result.data).toMatchObject({
+      changed: true,
+      reason: 'updating constant value',
+    });
+  });
+
+  it('records reason when reading a file with read_file', async () => {
+    await write('config.json', '{\n  "version": "1.0"\n}\n');
+    const outcome = await registry.execute(
+      'read_file',
+      { path: 'config.json', reason: 'inspecting version property' },
+      makeContext(),
+    );
+    expect(outcome.result.ok).toBe(true);
+    expect(outcome.result.output).toContain('Why: inspecting version property');
+    expect(outcome.result.data).toMatchObject({
+      reason: 'inspecting version property',
+      totalLines: 3,
+    });
+  });
 });
 
 describe('registry path safety', () => {

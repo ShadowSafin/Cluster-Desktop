@@ -24,6 +24,7 @@
     "@cluster/context-engine": "*",
     "@cluster/memory": "*",
     "@cluster/shared": "*",
+    "@cluster/skills": "*",
     "@cluster/storage": "*",
     "@cluster/task-engine": "*",
     "@cluster/tool-runtime": "*",

@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { Composer } from '../components/Composer';
 import { WorkflowCard, type CardType, type CardStatus } from '../components/WorkflowCard';
-import type { TimelineEntry, AgentState } from '../hooks/useAgent';
+import { FileProgressCard } from '../components/FileProgressCard';
+import type { TimelineEntry, AgentState, FileProgressState } from '../hooks/useAgent';
 
 interface WorkspacePageProps {
   sessionTitle: string;
@@ -33,6 +34,8 @@ interface WorkspacePageProps {
   taskGraph: any;
   plan: any;
   recalledMemories?: any[];
+  fileProgress?: FileProgressState | null;
+  activeSkill?: { skill: any; params: any; rawCommand: string } | null;
   onSubmit: (text: string) => void;
   onCancel: () => void;
   onConfirm: (approved: boolean) => void;
@@ -54,6 +57,8 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   taskGraph,
   plan,
   recalledMemories,
+  fileProgress,
+  activeSkill,
   onSubmit,
   onCancel,
   onConfirm,
@@ -508,6 +513,40 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
               </div>
             )}
 
+            {/* Live Active Skill Execution Banner */}
+            {activeSkill && (
+              <div className="rounded-xl border border-cyan-500/40 bg-cyan-950/30 p-3.5 mb-3 flex items-center justify-between shadow-lg shadow-cyan-950/30 animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center text-cyan-300 shrink-0">
+                    <Sparkles className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-cyan-300 font-mono">
+                        {activeSkill.rawCommand}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-700/50">
+                        {activeSkill.skill.manifest.displayName}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-zinc-400 mt-0.5">
+                      Executing prescribed skill instructions & workflow · Category:{' '}
+                      <span className="text-zinc-200 uppercase">{activeSkill.skill.manifest.category}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-cyan-400 font-mono bg-cyan-900/40 px-2 py-1 rounded border border-cyan-800">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                  <span>active skill</span>
+                </div>
+              </div>
+            )}
+
+            {/* Live Sequential File Generation Progress */}
+            {fileProgress && (
+              <FileProgressCard progress={fileProgress} dense={isCompact} />
+            )}
+
             {/* Welcome Card if empty */}
             {entries.length === 0 && !streamingText && (
               <div className="my-12 rounded-2xl border border-dashed border-[#232326] bg-[#0f0f12]/50 p-8 text-center">
@@ -614,23 +653,65 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                 let type: CardType = 'step';
                 let title = call.name;
                 let detail = '';
+                const reason = (call.input as any)?.reason || (call.result?.data as any)?.reason || '';
+                let lines: number | undefined;
+                let additions: number | undefined;
+                let deletions: number | undefined;
+                let sizeBytes: number | undefined;
 
                 if (call.name === 'read_file') {
                   type = 'file_read';
-                  title = 'Reading File';
-                  detail = (call.input as any)?.path || '';
+                  const filePath = (call.input as any)?.path || '';
+                  detail = filePath;
+                  lines = (call.result?.data as any)?.totalLines;
+                  title =
+                    status === 'running'
+                      ? `Reading file: ${filePath}`
+                      : status === 'success'
+                      ? `Read file: ${filePath}`
+                      : `Failed to read: ${filePath}`;
                 } else if (call.name === 'write_file') {
                   type = 'file_write';
-                  title = 'Writing File';
-                  detail = (call.input as any)?.path || '';
+                  const filePath = (call.input as any)?.path || '';
+                  detail = filePath;
+                  const data = call.result?.data as any;
+                  lines =
+                    data?.lineCount ??
+                    (typeof (call.input as any)?.content === 'string'
+                      ? (call.input as any).content.split('\n').length
+                      : undefined);
+                  additions = data?.additions;
+                  deletions = data?.deletions;
+                  sizeBytes = data?.sizeBytes;
+                  title =
+                    status === 'running'
+                      ? `Writing file: ${filePath}`
+                      : status === 'success'
+                      ? `Wrote file: ${filePath}`
+                      : `Failed to write: ${filePath}`;
                 } else if (call.name === 'patch_file') {
                   type = 'file_patch';
-                  title = 'Patching File';
-                  detail = (call.input as any)?.path || '';
+                  const filePath = (call.input as any)?.path || '';
+                  detail = filePath;
+                  const data = call.result?.data as any;
+                  additions = data?.additions;
+                  deletions = data?.deletions;
+                  title =
+                    status === 'running'
+                      ? `Patching file: ${filePath}`
+                      : status === 'success'
+                      ? `Patched file: ${filePath}`
+                      : `Failed to patch: ${filePath}`;
                 } else if (call.name === 'run_command') {
                   type = 'command';
-                  title = 'Running Command';
-                  detail = (call.input as any)?.command || '';
+                  const cmd = (call.input as any)?.command || '';
+                  detail = cmd;
+                  title =
+                    status === 'running'
+                      ? `Running: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`
+                      : status === 'success'
+                      ? `Executed: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`
+                      : `Command failed: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`;
                 }
 
                 const out =
@@ -640,6 +721,18 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                     ? call.result.output
                     : undefined;
 
+                const summaryText =
+                  call.result?.error?.message ||
+                  (status === 'success' && type === 'file_write'
+                    ? (call.result?.data as any)?.created
+                      ? `Created file with ${lines ?? additions ?? 0} lines.`
+                      : `Updated file (+${additions ?? 0} -${deletions ?? 0} lines, ${lines ?? 0} total).`
+                    : status === 'success' && type === 'file_patch'
+                    ? `Applied patch (+${additions ?? 0} -${deletions ?? 0} lines).`
+                    : status === 'success' && type === 'file_read'
+                    ? `Inspected file content (${lines ?? 0} lines).`
+                    : undefined);
+
                 return (
                   <WorkflowCard
                     key={entry.id}
@@ -648,11 +741,16 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                     status={status}
                     title={title}
                     detail={detail}
-                    summary={call.result?.error?.message}
+                    summary={summaryText}
                     output={out}
                     metadata={{
                       durationMs: call.durationMs,
                       exitCode: call.result?.data?.exitCode,
+                      reason,
+                      lines,
+                      additions,
+                      deletions,
+                      sizeBytes,
                     }}
                     dense={isCompact}
                   />

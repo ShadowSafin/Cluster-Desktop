@@ -54,6 +54,19 @@ interface ClusterAPI {
     stats: (opts?: { projectRoot?: string }) => Promise<any>;
     getRetrievedForTask: (opts: { sessionId: string; limit?: number }) => Promise<any[]>;
   };
+  skills: {
+    list: () => Promise<any[]>;
+    marketplace: (filter?: any) => Promise<any[]>;
+    install: (id: string) => Promise<{ ok: boolean; skill?: any; error?: string }>;
+    uninstall: (id: string) => Promise<boolean>;
+    update: (id: string) => Promise<any>;
+    toggle: (id: string, enabled: boolean) => Promise<boolean>;
+    pin: (id: string, pinned: boolean) => Promise<boolean>;
+    createCustom: (data: any) => Promise<any>;
+    history: (limit?: number) => Promise<any[]>;
+    stats: () => Promise<any>;
+    onInvoked?: (cb: (d: any) => void) => () => void;
+  };
   diagnostics: {
     get: (projectRoot?: string) => Promise<any>;
   };
@@ -76,6 +89,7 @@ interface ClusterAPI {
     onError: (cb:(data:any)=>void)=>()=>void;
     onConfirm: (cb:(data:any)=>void)=>()=>void;
     onDone: (cb: (d:any)=>void) => () => void;
+    onFileProgress?: (cb: (d:any)=>void) => () => void;
   };
 }
 

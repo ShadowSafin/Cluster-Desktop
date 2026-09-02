@@ -8,6 +8,7 @@
     { "path": "./packages/task-engine" },
     { "path": "./packages/context-engine" },
     { "path": "./packages/memory" },
+    { "path": "./packages/skills" },
     { "path": "./packages/ui-kit" },
     { "path": "./packages/agent-core" },
     { "path": "./apps/electron" }

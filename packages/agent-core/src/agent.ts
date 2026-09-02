@@ -478,6 +478,23 @@ export class AgentLoop {
     assistantMessageId: string,
     signal: AbortSignal,
   ): Promise<'ok' | 'cancelled' | 'stalled'> {
+    // Pre-calculate file queue across all tool calls in this turn
+    const isFileTool = (name: string) => name === 'write_file' || name === 'patch_file' || name === 'read_file';
+    const fileCalls = toolCalls.filter((c) => isFileTool(c.function.name));
+    const totalFiles = fileCalls.length;
+    const completedFiles: string[] = [];
+    const allFilePaths: string[] = fileCalls
+      .map((c) => {
+        try {
+          return JSON.parse(c.function.arguments || '{}').path || '';
+        } catch {
+          return '';
+        }
+      })
+      .filter(Boolean);
+
+    let fileIndex = 0;
+
     for (const call of toolCalls) {
       if (signal.aborted) return 'cancelled';
 
@@ -486,6 +503,40 @@ export class AgentLoop {
         input = JSON.parse(call.function.arguments || '{}');
       } catch {
         input = {};
+      }
+
+      const isFile = isFileTool(call.function.name);
+      const filePath = (input as any)?.path || '';
+      const fileReason = (input as any)?.reason || '';
+      const estimatedLines =
+        call.function.name === 'write_file' && typeof (input as any)?.content === 'string'
+          ? (input as any).content.split('\n').length
+          : undefined;
+
+      if (isFile && filePath) {
+        fileIndex += 1;
+        const currentAction =
+          call.function.name === 'write_file'
+            ? 'writing'
+            : call.function.name === 'patch_file'
+            ? 'patching'
+            : 'reading';
+
+        const queuedFiles = allFilePaths.filter((p) => p !== filePath && !completedFiles.includes(p));
+
+        this.deps.events.emit('file:progress', {
+          sessionId: this.deps.sessionId,
+          action: currentAction,
+          status: 'running',
+          file: filePath,
+          fileIndex,
+          totalFiles,
+          lines: estimatedLines,
+          reason: fileReason,
+          completedFiles: [...completedFiles],
+          queuedFiles,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       const tool = this.deps.registry.get(call.function.name);
@@ -512,9 +563,19 @@ export class AgentLoop {
         this.toolSignatures.every((entry) => entry === signature);
 
       const phase = PHASE_BY_TOOL[call.function.name] ?? 'thinking';
-      this.emitState(phase, `Using ${call.function.name}`, 0, this.deps.config.maxIterations);
+      const stateLabel =
+        isFile && filePath
+          ? `${call.function.name === 'write_file' ? 'Writing' : call.function.name === 'patch_file' ? 'Patching' : 'Reading'} ${filePath}${totalFiles > 1 ? ` (${fileIndex}/${totalFiles})` : ''}`
+          : `Using ${call.function.name}`;
+
+      this.emitState(phase, stateLabel, 0, this.deps.config.maxIterations);
       this.deps.events.emit('tool:start', record);
       this.advancePlanStep(call.function.name, 'in-progress');
+
+      // If multiple files are queued, give a brief 150ms visual tick so UI renders running state cleanly
+      if (isFile && totalFiles > 1) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
 
       const context = this.createToolContext(signal, record.id);
       const outcome = await this.deps.registry.execute(call.function.name, input, context);
@@ -528,6 +589,40 @@ export class AgentLoop {
 
       this.deps.events.emit('tool:end', record);
       this.advancePlanStep(call.function.name, outcome.result.ok ? 'done' : 'failed');
+
+      if (isFile && filePath) {
+        if (outcome.result.ok) {
+          completedFiles.push(filePath);
+        }
+        const outcomeAction =
+          call.function.name === 'write_file'
+            ? 'written'
+            : call.function.name === 'patch_file'
+            ? 'patched'
+            : 'read';
+
+        const finalLines =
+          (outcome.result.data as any)?.lineCount ??
+          (outcome.result.data as any)?.totalLines ??
+          estimatedLines;
+
+        const queuedFiles = allFilePaths.filter((p) => !completedFiles.includes(p));
+
+        this.deps.events.emit('file:progress', {
+          sessionId: this.deps.sessionId,
+          action: outcome.result.ok ? outcomeAction : 'failed',
+          status: outcome.result.ok ? 'done' : 'failed',
+          file: filePath,
+          fileIndex,
+          totalFiles,
+          lines: finalLines,
+          sizeBytes: (outcome.result.data as any)?.sizeBytes,
+          reason: fileReason,
+          completedFiles: [...completedFiles],
+          queuedFiles,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       if (call.function.name === 'write_file' || call.function.name === 'patch_file') {
         const changed = outcome.result.data as { changed?: boolean } | undefined;

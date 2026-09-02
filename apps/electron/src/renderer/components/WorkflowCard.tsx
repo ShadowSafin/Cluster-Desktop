@@ -39,6 +39,9 @@ export interface WorkflowCardProps {
     path?: string;
     port?: number;
     pid?: number;
+    reason?: string;
+    created?: boolean;
+    sizeBytes?: number;
   };
   output?: string;
   diff?: string;
@@ -305,7 +308,28 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
                   {safeDetail}
                 </span>
               )}
+              {metadata?.lines !== undefined && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300 border border-neutral-700">
+                  {metadata.lines} lines
+                </span>
+              )}
+              {metadata?.additions !== undefined && metadata.additions > 0 && (
+                <span className="text-[10px] font-mono font-semibold text-emerald-400">
+                  +{metadata.additions}
+                </span>
+              )}
+              {metadata?.deletions !== undefined && metadata.deletions > 0 && (
+                <span className="text-[10px] font-mono font-semibold text-rose-400">
+                  -{metadata.deletions}
+                </span>
+              )}
             </div>
+            {metadata?.reason && (
+              <div className="flex items-center gap-1.5 text-[11px] text-blue-300/90 font-sans mt-0.5">
+                <span className="font-semibold text-blue-400">Why:</span>
+                <span className="truncate">{metadata.reason}</span>
+              </div>
+            )}
           </div>
         </div>
 

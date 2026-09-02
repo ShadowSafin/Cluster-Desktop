@@ -59,6 +59,19 @@ export type IpcApi = {
     stats: (opts: { projectRoot?: string }) => Promise<any>;
     getRetrievedForTask: (opts: { sessionId: string; limit?: number }) => Promise<any[]>;
   };
+  skills: {
+    list: () => Promise<any[]>;
+    marketplace: (filter?: any) => Promise<any[]>;
+    install: (id: string) => Promise<{ ok: boolean; skill?: any; error?: string }>;
+    uninstall: (id: string) => Promise<boolean>;
+    update: (id: string) => Promise<any>;
+    toggle: (id: string, enabled: boolean) => Promise<boolean>;
+    pin: (id: string, pinned: boolean) => Promise<boolean>;
+    createCustom: (data: any) => Promise<any>;
+    history: (limit?: number) => Promise<any[]>;
+    stats: () => Promise<any>;
+    onInvoked: (cb: (data: any) => void) => () => void;
+  };
   diagnostics: {
     get: (projectRoot?: string) => Promise<any>;
   };
@@ -81,6 +94,7 @@ export type IpcApi = {
     onError: (cb:(data:any)=>void)=>()=>void;
     onConfirm: (cb:(data:any)=>void)=>()=>void;
     onDone: (cb: (data: any) => void) => () => void;
+    onFileProgress: (cb: (data: any) => void) => () => void;
   };
 };
 
@@ -142,6 +156,23 @@ const api: IpcApi = {
     stats: (opts) => ipcRenderer.invoke('memory:stats', opts),
     getRetrievedForTask: (opts) => ipcRenderer.invoke('memory:getRetrievedForTask', opts),
   },
+  skills: {
+    list: () => ipcRenderer.invoke('skills:list'),
+    marketplace: (filter) => ipcRenderer.invoke('skills:marketplace', filter),
+    install: (id) => ipcRenderer.invoke('skills:install', id),
+    uninstall: (id) => ipcRenderer.invoke('skills:uninstall', id),
+    update: (id) => ipcRenderer.invoke('skills:update', id),
+    toggle: (id, enabled) => ipcRenderer.invoke('skills:toggle', { id, enabled }),
+    pin: (id, pinned) => ipcRenderer.invoke('skills:pin', { id, pinned }),
+    createCustom: (data) => ipcRenderer.invoke('skills:createCustom', data),
+    history: (limit) => ipcRenderer.invoke('skills:history', limit),
+    stats: () => ipcRenderer.invoke('skills:stats'),
+    onInvoked: (cb) => {
+      const h = (_e: any, d: any) => cb(d);
+      ipcRenderer.on('agent:skill:invoked', h);
+      return () => ipcRenderer.removeListener('agent:skill:invoked', h);
+    },
+  },
   diagnostics: {
     get: (root) => ipcRenderer.invoke('diagnostics:get', root),
   },
@@ -164,6 +195,7 @@ const api: IpcApi = {
     onError: (cb)=>{ const h=(_e:any,d:any)=>cb(d); ipcRenderer.on('agent:error',h); return ()=>ipcRenderer.removeListener('agent:error',h); },
     onConfirm: (cb)=>{ const h=(_e:any,d:any)=>cb(d); ipcRenderer.on('agent:confirm',h); return ()=>ipcRenderer.removeListener('agent:confirm',h); },
     onDone: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:done', h); return () => ipcRenderer.removeListener('agent:done', h); },
+    onFileProgress: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:file:progress', h); return () => ipcRenderer.removeListener('agent:file:progress', h); },
   },
 };
 

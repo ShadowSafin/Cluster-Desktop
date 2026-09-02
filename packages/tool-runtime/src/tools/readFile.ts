@@ -20,6 +20,10 @@ const schema = z.object({
     .max(5000)
     .optional()
     .describe(`Maximum number of lines to return. Defaults to ${MAX_LINES_DEFAULT}.`),
+  reason: z
+    .string()
+    .optional()
+    .describe('Short explanation of why this file is being inspected (e.g. "checking component imports", "inspecting router setup").'),
 });
 
 export const readFileTool = defineTool<z.infer<typeof schema>>({
@@ -64,6 +68,7 @@ export const readFileTool = defineTool<z.infer<typeof schema>>({
       const numbered = slice.map((line, index) => `${String(offset + index + 1).padStart(width, ' ')} | ${line}`);
 
       const header: string[] = [`File: ${resolved.path.display} (${allLines.length} lines total)`];
+      if (input.reason) header.unshift(`Why: ${input.reason}`);
       if (truncated) header.push(`Note: file is larger than ${MAX_BYTES} bytes; only the beginning was read.`);
       if (offset > 0 || slice.length < allLines.length) {
         header.push(`Showing lines ${offset + 1}-${offset + slice.length}.`);
@@ -76,6 +81,7 @@ export const readFileTool = defineTool<z.infer<typeof schema>>({
           totalLines: allLines.length,
           returnedLines: slice.length,
           truncated,
+          reason: input.reason,
         },
         [{ type: 'file', path: resolved.path.display, action: 'read' }],
       );

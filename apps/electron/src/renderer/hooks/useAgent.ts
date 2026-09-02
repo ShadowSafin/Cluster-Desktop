@@ -27,6 +27,20 @@ export interface TaskGraph {
   tasks: Record<string, TaskItem>;
 }
 
+export interface FileProgressState {
+  active: boolean;
+  action?: 'reading' | 'writing' | 'patching' | 'read' | 'written' | 'patched';
+  status?: 'running' | 'done' | 'failed';
+  file?: string;
+  fileIndex?: number;
+  totalFiles?: number;
+  lines?: number;
+  sizeBytes?: number;
+  reason?: string;
+  queuedFiles?: string[];
+  completedFiles?: string[];
+}
+
 export function useAgent(sessionId: string | null) {
   const isElectron = typeof (window as any).cluster !== 'undefined';
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
@@ -41,6 +55,8 @@ export function useAgent(sessionId: string | null) {
   const [jobs, setJobs] = useState<any[]>([]);
   const [pendingConfirm, setPendingConfirm] = useState<any|null>(null);
   const [recalledMemories, setRecalledMemories] = useState<any[]>([]);
+  const [fileProgress, setFileProgress] = useState<FileProgressState | null>(null);
+  const [activeSkill, setActiveSkill] = useState<{ skill: any; params: any; rawCommand: string } | null>(null);
 
   const pushActivity = useCallback((msg: string) => {
     setActivity(a => [...a.slice(-200), `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -217,13 +233,30 @@ export function useAgent(sessionId: string | null) {
         setRecalledMemories(memories);
         pushActivity(`Recalled ${memories.length} durable memories`);
       }),
+      (window.cluster.skills as any)?.onInvoked?.(({ sessionId: sid, skill, params, rawCommand }: any) => {
+        if (sid !== sessionId) return;
+        setActiveSkill({ skill, params, rawCommand });
+        pushActivity(`[skill] invoked /${skill.manifest.invocationName}`);
+      }),
+      (window.cluster.agent as any).onFileProgress?.(({ sessionId: sid, ...data }: any) => {
+        if (sid !== sessionId) return;
+        setFileProgress({
+          active: data.status === 'running' || (data.queuedFiles && data.queuedFiles.length > 0),
+          ...data,
+        });
+        pushActivity(`[file] ${data.action}: ${data.file} (${data.fileIndex}/${data.totalFiles})`);
+      }),
       window.cluster.agent.onDone(({ sessionId: sid, summary, cancelled }) => {
         if (sid!==sessionId) return;
         setRunning(false);
         setStreamingText('');
+        setActiveSkill(null);
         setAgentState(s=>({...s, phase: cancelled ? 'cancelled' : 'done' as any }));
         pushActivity(cancelled ? 'cancelled' : `done: ${summary.slice(0,120)}`);
         setTaskGraph(g=> g ? {...g, status: cancelled?'cancelled':'done', tasks: Object.fromEntries(Object.entries(g.tasks).map(([k,v])=>[k, {...v, status: (v.status==='running'||v.status==='pending'||v.status==='ready') ? (cancelled?'cancelled':'done') as any : v.status }]))} : g);
+        setTimeout(() => {
+          setFileProgress((prev) => (prev ? { ...prev, active: false } : null));
+        }, 3500);
       }),
     ].filter(Boolean) as (()=>void)[];
     return ()=> unsubs.forEach(fn=>fn());
@@ -239,6 +272,7 @@ export function useAgent(sessionId: string | null) {
     setAgentState({ phase:'planning', label:'Planning', iteration:0, maxIterations:40 });
     setStreamingText('');
     setLiveOutput({});
+    setFileProgress(null);
     const isMulti = trimmed.startsWith('/multi ');
     const actualText = isMulti ? trimmed.replace(/^\/multi\s+/, '') : trimmed;
     try {
@@ -254,6 +288,8 @@ export function useAgent(sessionId: string | null) {
     if (!isElectron) return;
     await window.cluster.agent.cancel(sessionId);
     setRunning(false);
+    setFileProgress(null);
+    setActiveSkill(null);
     setAgentState(s=>({...s, phase:'cancelled'}));
     pushActivity('cancel requested');
   }, [sessionId, pushActivity, isElectron]);
@@ -270,7 +306,9 @@ export function useAgent(sessionId: string | null) {
     setEntries([]);
     setStreamingText('');
     setLiveOutput({});
+    setFileProgress(null);
+    setActiveSkill(null);
   }, []);
 
-  return { entries, agentState, running, plan, taskGraph, liveOutput, activity, edits, jobs, streamingText, pendingConfirm, recalledMemories, submit, cancel, confirm, clear, setEntries, setTaskGraph };
+  return { entries, agentState, running, plan, taskGraph, liveOutput, activity, edits, jobs, streamingText, pendingConfirm, recalledMemories, fileProgress, activeSkill, submit, cancel, confirm, clear, setEntries, setTaskGraph };
 }

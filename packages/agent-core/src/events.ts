@@ -7,6 +7,21 @@ import type {
 } from '@cluster/shared';
 import type { ChatUsage } from './provider.js';
 
+export interface FileProgressEvent {
+  sessionId: string;
+  action: 'reading' | 'writing' | 'patching' | 'written' | 'read' | 'patched' | 'failed';
+  status: 'queued' | 'running' | 'done' | 'failed';
+  file: string;
+  fileIndex: number;
+  totalFiles: number;
+  lines?: number;
+  sizeBytes?: number;
+  reason?: string;
+  completedFiles: string[];
+  queuedFiles: string[];
+  timestamp: string;
+}
+
 /**
  * Everything the UI needs to render a run, and everything the session store
  * needs to persist one. The agent emits these; it never touches storage or the
@@ -44,4 +59,5 @@ export interface AgentEvents {
   };
   workspace: WorkspaceInfo;
   'memory:recalled': { sessionId: string; memories: any[] };
+  'file:progress': FileProgressEvent;
 }

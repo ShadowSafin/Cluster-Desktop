@@ -35,6 +35,10 @@ const schema = z
       .boolean()
       .optional()
       .describe('Compute and return the diff without writing anything. Use this to preview a risky change.'),
+    reason: z
+      .string()
+      .optional()
+      .describe('Short human-readable explanation of why this file is being patched (e.g. "updating navigation links", "fixing layout styling").'),
   })
   .refine((value) => Boolean(value.edits) !== Boolean(value.unifiedDiff), {
     message: 'Provide exactly one of "edits" or "unifiedDiff".',
@@ -136,13 +140,15 @@ export const patchFileTool = defineTool<Input>({
       await fs.mkdir(path.dirname(target.absolute), { recursive: true });
       await fs.writeFile(target.absolute, applied.content, 'utf8');
 
+      const reasonSuffix = input.reason ? `\nWhy: ${input.reason}` : '';
       return okResult(
-        `Patched ${target.display} (+${additions} -${deletions})`,
+        `Patched ${target.display} (+${additions} -${deletions})${reasonSuffix}`,
         {
           path: target.display,
           changed: true,
           additions,
           deletions,
+          reason: input.reason,
           backupPath: backup.backupPath,
           diff,
         },

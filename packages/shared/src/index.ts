@@ -14,3 +14,4 @@ export * from './verification.js';
 export * from './stateMachine.js';
 export * from './permissions.js';
 export * from './events2.js';
+export * from './skills.js';
