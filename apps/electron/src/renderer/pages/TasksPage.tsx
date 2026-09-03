@@ -270,14 +270,14 @@ export const TasksPage: React.FC<TasksPageProps> = ({
                 key={task.id}
                 className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#141418] border border-[#1c1c20] hover:border-[#27272a] transition-all"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="w-5 h-5 flex items-center justify-center shrink-0">
                     {getStatusIcon(task.status)}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="text-xs font-semibold text-white truncate">{task.title}</div>
                     {task.description && (
-                      <div className="text-[11px] text-[#71717a] truncate max-w-lg mt-0.5">
+                      <div className="text-[11px] text-[#71717a] truncate max-w-full mt-0.5">
                         {task.description}
                       </div>
                     )}

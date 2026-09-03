@@ -175,11 +175,11 @@ export const CheckpointsPage: React.FC<CheckpointsPageProps> = ({
                   key={cp.id}
                   className="rounded-xl border border-[#232326] bg-[#0f0f12] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-[#333338] transition-all"
                 >
-                  <div className="flex items-start gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
                     <div className="w-8 h-8 rounded-xl bg-[#141418] border border-[#232326] flex items-center justify-center shrink-0 font-mono text-xs font-bold text-[#a1a1aa]">
                       #
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="text-xs font-semibold text-white truncate">
                         {cp.message || 'Manual Snapshot'}
                       </div>

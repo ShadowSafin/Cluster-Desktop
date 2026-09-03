@@ -294,7 +294,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
     return entries;
   }, [entries, showAllArchived]);
 
-  const isVirtualized = visibleEntries.length > 20;
+  const isVirtualized = visibleEntries.length > 50;
 
   const {
     virtualItems,
@@ -346,7 +346,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   }, [plan]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0a0a0d] min-w-0 overflow-hidden">
+    <div className="relative flex-1 flex flex-col h-full bg-[#0a0a0d] min-w-0 overflow-hidden">
       {/* Top Session & Task Status Bar */}
       <div className="px-5 py-2.5 border-b border-[#232326] bg-[#0f0f12] flex items-center justify-between shrink-0 select-none">
         <div className="flex items-center gap-3 min-w-0">
@@ -440,10 +440,10 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
       </div>
 
       {/* Main Workspace Body: Supports Split View in 'tasks' Mode */}
-      <div className="flex-1 flex overflow-hidden min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0 relative">
         {/* Left Side Panel in 'tasks' Mode */}
         {viewMode === 'tasks' && (
-          <aside className="w-80 sm:w-96 border-r border-[#1e1e24] bg-[#0c0c10] overflow-y-auto p-4 space-y-4 shrink-0">
+          <aside className="w-72 lg:w-80 xl:w-96 border-r border-[#1e1e24] bg-[#0c0c10] overflow-y-auto p-4 space-y-4 shrink-0 min-w-0">
             <div className="flex items-center justify-between pb-2 border-b border-[#1e1e24]">
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-indigo-400" />
@@ -882,31 +882,54 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
             {/* Active streaming / thinking preview cards */}
             {running && isCurrentlyThinking && streamingReasoning && (
-              <WorkflowCard
-                id="streaming-thinking-card"
-                type="thinking"
-                status="running"
-                title="Reasoning / Planning"
-                output={streamingReasoning}
-                defaultExpanded={true}
-                dense={isCompact}
-              />
+              <div className="pt-2">
+                <WorkflowCard
+                  id="streaming-thinking-card"
+                  type="thinking"
+                  status="running"
+                  title="Reasoning / Planning"
+                  output={streamingReasoning}
+                  defaultExpanded={true}
+                  dense={isCompact}
+                />
+              </div>
             )}
 
             {running && streamingCleanResponse && (
-              <WorkflowCard
-                id="streaming-response-card"
-                type="assistant"
-                status="running"
-                title="Cluster Assistant (Streaming)"
-                summary={streamingCleanResponse.replace(/\n{3,}/g, '\n\n')}
-                dense={isCompact}
-              />
+              <div className="pt-2">
+                <WorkflowCard
+                  id="streaming-response-card"
+                  type="assistant"
+                  status="running"
+                  title="Cluster Assistant (Streaming)"
+                  summary={streamingCleanResponse.replace(/\n{3,}/g, '\n\n')}
+                  dense={isCompact}
+                />
+              </div>
             )}
 
             <div ref={bottomRef} />
           </div>
         </div>
+
+        {/* Floating Scroll to Bottom Button when detached from bottom */}
+        {isUserScrolledUp && (
+          <div className="absolute bottom-4 right-8 z-30 animate-in fade-in slide-in-from-bottom-2 pointer-events-auto">
+            <button
+              onClick={() => {
+                setIsUserScrolledUp(false);
+                isUserScrolledUpRef.current = false;
+                if (scrollContainerRef.current) {
+                  scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+                }
+              }}
+              className="px-3.5 py-2 rounded-full bg-cyan-600/95 hover:bg-cyan-500 text-white text-xs font-semibold shadow-2xl border border-cyan-400/40 flex items-center gap-2 backdrop-blur-md transition-all cursor-pointer"
+            >
+              <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
+              <span>New events below</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Confirmation Banner if required */}
@@ -933,25 +956,6 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
               Approve
             </button>
           </div>
-        </div>
-      )}
-
-      {/* Floating Scroll to Bottom Button when detached from bottom */}
-      {isUserScrolledUp && (
-        <div className="absolute bottom-24 right-8 z-30 animate-in fade-in slide-in-from-bottom-2">
-          <button
-            onClick={() => {
-              setIsUserScrolledUp(false);
-              isUserScrolledUpRef.current = false;
-              if (scrollContainerRef.current) {
-                scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-              }
-            }}
-            className="px-3.5 py-2 rounded-full bg-cyan-600/95 hover:bg-cyan-500 text-white text-xs font-semibold shadow-2xl border border-cyan-400/40 flex items-center gap-2 backdrop-blur-md transition-all"
-          >
-            <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
-            <span>New events below</span>
-          </button>
         </div>
       )}
 

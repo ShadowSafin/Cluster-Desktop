@@ -44,32 +44,33 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   const displayPath = projectRoot ? projectRoot.replace(/\\/g, '/') : '~/projects/cluster';
+  const isWindows = typeof navigator !== 'undefined' && /win/i.test(navigator.userAgent || (navigator as any).platform || '');
 
   return (
-    <header className="h-10 shrink-0 flex items-center justify-between px-3 bg-[#0a0a0d] border-b border-[#232326] drag-region select-none text-xs">
+    <header className={`h-10 shrink-0 flex items-center justify-between pl-3 ${isWindows ? 'pr-[140px]' : 'pr-3'} bg-[#0a0a0d] border-b border-[#232326] drag-region select-none text-xs overflow-hidden`}>
       {/* Breadcrumb & Status */}
-      <div className="flex items-center gap-2 no-drag min-w-0">
+      <div className="flex items-center gap-2 no-drag min-w-0 flex-1 overflow-hidden">
         <ClusterLogo size={16} rounded={true} />
-        <span className="font-bold text-white text-xs tracking-wider">CLUSTER</span>
-        <span className="text-[#52525b]">/</span>
+        <span className="font-bold text-white text-xs tracking-wider shrink-0">CLUSTER</span>
+        <span className="text-[#52525b] shrink-0">/</span>
 
         {/* Interactive Workspace Button */}
         <button
           onClick={onOpenWorkspaceSwitcher}
           title={`Current Workspace: ${displayPath}\nClick to switch workspace (Ctrl+O)`}
-          className="flex items-center gap-1.5 px-2 py-1 -my-1 rounded-lg bg-[#141418] hover:bg-[#1f1f23] border border-[#27272a] hover:border-cyan-500/40 text-white transition-all max-w-[180px] sm:max-w-xs group cursor-pointer"
+          className="flex items-center gap-1.5 px-2 py-1 -my-1 rounded-lg bg-[#141418] hover:bg-[#1f1f23] border border-[#27272a] hover:border-cyan-500/40 text-white transition-all max-w-[160px] sm:max-w-xs group cursor-pointer shrink-0"
         >
           <span className="text-xs">📁</span>
           <span className="font-semibold text-xs text-cyan-300 truncate">{workspaceName}</span>
           <span className="text-[10px] text-[#71717a] group-hover:text-white transition-colors">▾</span>
         </button>
 
-        <span className="text-[#52525b]">/</span>
-        <span className="font-medium text-[#a1a1aa] capitalize">{pageTitles[currentPage]}</span>
+        <span className="text-[#52525b] shrink-0">/</span>
+        <span className="font-medium text-[#a1a1aa] capitalize shrink-0">{pageTitles[currentPage]}</span>
         {sessionTitle && currentPage === 'workspace' && (
           <>
-            <span className="text-[#52525b]">·</span>
-            <span className="text-[#71717a] font-mono truncate max-w-[140px] sm:max-w-xs">
+            <span className="text-[#52525b] shrink-0">·</span>
+            <span className="text-[#71717a] font-mono truncate max-w-[120px] sm:max-w-xs min-w-0">
               {sessionTitle}
             </span>
           </>
@@ -77,7 +78,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       {/* Middle Search / Palette Trigger */}
-      <div className="hidden md:flex items-center no-drag">
+      <div className="hidden lg:flex items-center no-drag shrink-0 mx-2">
         <button
           onClick={onCommandPalette}
           className="flex items-center gap-2 bg-[#141418] border border-[#232326] hover:border-[#3f3f46] text-[#71717a] hover:text-white px-3 py-1 rounded-xl transition-all shadow-sm"
@@ -91,7 +92,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       {/* Right Actions & Model Indicator */}
-      <div className="flex items-center gap-2 no-drag">
+      <div className="flex items-center gap-2 no-drag shrink-0">
         <button
           onClick={onNewCheckpoint}
           title="Create Snapshot Checkpoint (Ctrl+G)"

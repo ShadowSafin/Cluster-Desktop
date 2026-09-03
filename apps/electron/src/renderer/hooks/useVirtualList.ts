@@ -107,11 +107,22 @@ export function useVirtualList({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(600);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [measureRevision, setMeasureRevision] = useState(0);
 
   // Height cache for measured dynamic items
   const measuredHeights = useRef<Map<number, number>>(new Map());
+  const nodeObservers = useRef<Map<number, ResizeObserver>>(new Map());
   const prevItemsCount = useRef(itemsCount);
   const isAtBottomRef = useRef(true);
+
+  // Clean up observers on unmount
+  useEffect(() => {
+    const observers = nodeObservers.current;
+    return () => {
+      observers.forEach((ro) => ro.disconnect());
+      observers.clear();
+    };
+  }, []);
 
   // Helper to get estimated or measured height for an index
   const getItemHeight = useCallback(
@@ -120,13 +131,15 @@ export function useVirtualList({
       if (typeof cached === 'number' && cached > 0) return cached;
       return typeof estimateHeight === 'function' ? estimateHeight(index) : estimateHeight;
     },
-    [estimateHeight]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [estimateHeight, measureRevision]
   );
 
   // Compute prefix sums (offsets) for all items
   const { offsets, totalHeight } = useMemo(
     () => computeOffsets(itemsCount, getItemHeight),
-    [itemsCount, getItemHeight]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itemsCount, getItemHeight, measureRevision]
   );
 
   // Calculate visible range
@@ -140,16 +153,40 @@ export function useVirtualList({
         overscan,
         getHeight: getItemHeight,
       }),
-    [itemsCount, offsets, scrollTop, viewportHeight, overscan, getItemHeight]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [itemsCount, offsets, scrollTop, viewportHeight, overscan, getItemHeight, measureRevision]
   );
 
-  // Measure an item dynamically via ref
+  // Measure an item dynamically via ref with ResizeObserver
   const measureElement = useCallback(
     (index: number, element: HTMLElement | null) => {
-      if (!element) return;
-      const height = element.getBoundingClientRect().height;
-      if (height > 0 && measuredHeights.current.get(index) !== height) {
-        measuredHeights.current.set(index, height);
+      if (!element) {
+        const existing = nodeObservers.current.get(index);
+        if (existing) {
+          existing.disconnect();
+          nodeObservers.current.delete(index);
+        }
+        return;
+      }
+
+      const updateHeight = () => {
+        const height = element.getBoundingClientRect().height;
+        if (height > 0 && Math.abs((measuredHeights.current.get(index) || 0) - height) > 1) {
+          measuredHeights.current.set(index, height);
+          setMeasureRevision((r) => r + 1);
+        }
+      };
+
+      updateHeight();
+
+      if (!nodeObservers.current.has(index)) {
+        try {
+          const ro = new ResizeObserver(() => {
+            updateHeight();
+          });
+          ro.observe(element);
+          nodeObservers.current.set(index, ro);
+        } catch {}
       }
     },
     []

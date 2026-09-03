@@ -26,10 +26,10 @@ const DiffLineRow: React.FC<{ line: string; idx: number }> = React.memo(({ line,
   }
 
   return (
-    <div className={`flex font-mono text-[12px] leading-5 px-3 py-0.5 ${bg} hover:bg-white/5`}>
-      <span className="w-8 text-[#52525b] select-none text-right pr-3">{idx + 1}</span>
-      <span className={`w-4 select-none ${textCol}`}>{sign}</span>
-      <span className={`flex-1 whitespace-pre-wrap break-all ${textCol}`}>{line.slice(1) || line}</span>
+    <div className={`flex items-center font-mono text-[12px] leading-5 px-3 py-0.5 ${bg} hover:bg-white/5 min-w-full w-max`}>
+      <span className="w-8 shrink-0 text-[#52525b] select-none text-right pr-3">{idx + 1}</span>
+      <span className={`w-4 shrink-0 select-none ${textCol}`}>{sign}</span>
+      <span className={`whitespace-pre font-mono ${textCol}`}>{line.slice(1) || line}</span>
     </div>
   );
 });
@@ -53,10 +53,12 @@ const VirtualizedDiffViewer: React.FC<{ diffText?: string }> = React.memo(({ dif
 
   if (!isVirtualized) {
     return (
-      <div className="rounded-xl border border-[#232326] bg-[#0b0b0e] overflow-hidden">
-        {lines.map((line, idx) => (
-          <DiffLineRow key={idx} line={line} idx={idx} />
-        ))}
+      <div className="rounded-xl border border-[#232326] bg-[#0b0b0e] overflow-auto flex-1">
+        <div className="min-w-full w-max">
+          {lines.map((line, idx) => (
+            <DiffLineRow key={idx} line={line} idx={idx} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -64,10 +66,10 @@ const VirtualizedDiffViewer: React.FC<{ diffText?: string }> = React.memo(({ dif
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto rounded-xl border border-[#232326] bg-[#0b0b0e] relative h-full min-h-[400px]"
+      className="flex-1 overflow-auto rounded-xl border border-[#232326] bg-[#0b0b0e] relative h-full min-h-[400px]"
       style={{ willChange: 'scroll-position' }}
     >
-      <div style={{ height: `${totalHeight}px`, width: '100%', position: 'relative' }}>
+      <div style={{ height: `${totalHeight}px`, minWidth: '100%', width: 'max-content', position: 'relative' }}>
         {virtualItems.map(({ index, start }) => (
           <div
             key={index}
@@ -76,7 +78,7 @@ const VirtualizedDiffViewer: React.FC<{ diffText?: string }> = React.memo(({ dif
               position: 'absolute',
               top: 0,
               left: 0,
-              width: '100%',
+              minWidth: '100%',
               transform: `translateY(${start}px)`,
             }}
           >

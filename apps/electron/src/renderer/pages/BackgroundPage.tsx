@@ -17,12 +17,24 @@ export const BackgroundPage: React.FC<BackgroundPageProps> = ({
     if (typeof window.cluster !== 'undefined' && window.cluster.jobs) {
       try {
         const list = await window.cluster.jobs.list();
-        setJobs(list);
+        setJobs(list || []);
       } catch (err) {
         console.error('Failed to list jobs', err);
       }
     }
   };
+
+  useEffect(() => {
+    if (propJobs && propJobs.length > 0) {
+      setJobs(prev => {
+        const map = new Map(prev.map(j => [j.id, j]));
+        for (const pj of propJobs) {
+          map.set(pj.id, { ...map.get(pj.id), ...pj });
+        }
+        return Array.from(map.values());
+      });
+    }
+  }, [propJobs]);
 
   useEffect(() => {
     fetchJobs();
@@ -137,8 +149,8 @@ export const BackgroundPage: React.FC<BackgroundPageProps> = ({
                   key={job.id}
                   className="rounded-xl border border-[#232326] bg-[#0f0f12] p-4 flex flex-col gap-3 hover:border-[#333338] transition-all"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <span
                         className={`w-2 h-2 rounded-full shrink-0 ${
                           isRunning
@@ -150,7 +162,7 @@ export const BackgroundPage: React.FC<BackgroundPageProps> = ({
                             : 'bg-red-400'
                         }`}
                       />
-                      <span className="font-mono text-xs font-semibold text-white truncate max-w-lg">
+                      <span className="font-mono text-xs font-semibold text-white truncate min-w-0 flex-1" title={job.command}>
                         $ {job.command}
                       </span>
                     </div>
@@ -193,7 +205,7 @@ export const BackgroundPage: React.FC<BackgroundPageProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-4 text-[11px] font-mono text-[#71717a] border-t border-[#1c1c20] pt-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-mono text-[#71717a] border-t border-[#1c1c20] pt-2">
                     {job.pid && <span>PID: <strong className="text-[#a1a1aa]">{job.pid}</strong></span>}
                     {job.port && (
                       <span className="text-cyan-400 font-semibold bg-cyan-950/30 px-2 py-0.5 rounded border border-cyan-800/30">

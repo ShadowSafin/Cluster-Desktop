@@ -288,9 +288,9 @@ const WorkflowCardComponent: React.FC<WorkflowCardProps> = ({
       className={`w-full ${dense ? 'rounded-xl' : 'rounded-2xl'} border transition-all duration-200 shadow-sm overflow-hidden ${theme.bgGlow} ${theme.accentBorder} text-xs`}
     >
       {/* Card Header */}
-      <div className={`${dense ? 'p-2.5' : 'p-3.5'} flex items-center justify-between gap-3 select-none`}>
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <span className="text-sm shrink-0">{theme.icon}</span>
+      <div className={`${dense ? 'p-2.5' : 'p-3.5'} flex items-start justify-between gap-3 select-none`}>
+        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+          <span className="text-sm shrink-0 mt-0.5">{theme.icon}</span>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold tracking-tight text-white text-[12px]">
@@ -303,7 +303,7 @@ const WorkflowCardComponent: React.FC<WorkflowCardProps> = ({
               )}
               {safeDetail && (
                 <span
-                  className="font-mono text-[11px] text-[#a1a1aa] bg-[#141418] border border-[#232328] px-2 py-0.5 rounded-md truncate max-w-[280px] sm:max-w-md"
+                  className="font-mono text-[11px] text-[#a1a1aa] bg-[#141418] border border-[#232328] px-2 py-0.5 rounded-md truncate max-w-full sm:max-w-md min-w-0"
                   title={safeDetail}
                 >
                   {safeDetail}
@@ -335,7 +335,7 @@ const WorkflowCardComponent: React.FC<WorkflowCardProps> = ({
         </div>
 
         {/* Right Status & Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 pt-0.5">
           {renderStatusBadge()}
 
           {metadata?.durationMs !== undefined && (
@@ -385,7 +385,7 @@ const WorkflowCardComponent: React.FC<WorkflowCardProps> = ({
                 {copied ? '✓ Copied' : 'Copy Output'}
               </button>
             </div>
-            <pre className="p-3 text-[11px] font-mono text-[#a1a1aa] max-h-56 overflow-y-auto whitespace-pre-wrap break-all leading-normal select-text">
+            <pre className="p-3 text-[11px] font-mono text-[#a1a1aa] max-h-56 overflow-y-auto overflow-x-auto whitespace-pre-wrap break-words leading-normal select-text">
               {safeOutput}
             </pre>
           </div>
