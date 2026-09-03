@@ -50,7 +50,7 @@ export interface WorkflowCardProps {
   dense?: boolean;
 }
 
-export const WorkflowCard: React.FC<WorkflowCardProps> = ({
+const WorkflowCardComponent: React.FC<WorkflowCardProps> = ({
   id,
   type,
   status,
@@ -431,3 +431,25 @@ export const WorkflowCard: React.FC<WorkflowCardProps> = ({
     </div>
   );
 };
+
+export const WorkflowCard = React.memo(WorkflowCardComponent, (prev, next) => {
+  return (
+    prev.id === next.id &&
+    prev.type === next.type &&
+    prev.status === next.status &&
+    prev.title === next.title &&
+    prev.detail === next.detail &&
+    prev.summary === next.summary &&
+    prev.output === next.output &&
+    prev.diff === next.diff &&
+    prev.dense === next.dense &&
+    prev.defaultExpanded === next.defaultExpanded &&
+    prev.metadata?.durationMs === next.metadata?.durationMs &&
+    prev.metadata?.exitCode === next.metadata?.exitCode &&
+    prev.metadata?.lines === next.metadata?.lines &&
+    prev.metadata?.additions === next.metadata?.additions &&
+    prev.metadata?.deletions === next.metadata?.deletions &&
+    prev.metadata?.reason === next.metadata?.reason &&
+    prev.metadata?.path === next.metadata?.path
+  );
+});

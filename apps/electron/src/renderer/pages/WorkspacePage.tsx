@@ -16,10 +16,15 @@ import {
   Target,
   Layers,
   ArrowRight,
+  Archive,
+  ArrowDown,
+  Gauge,
 } from 'lucide-react';
 import { Composer } from '../components/Composer';
 import { WorkflowCard, type CardType, type CardStatus } from '../components/WorkflowCard';
 import { FileProgressCard } from '../components/FileProgressCard';
+import { PerfDiagnosticsModal } from '../components/PerfDiagnosticsModal';
+import { useVirtualList } from '../hooks/useVirtualList';
 import type { TimelineEntry, AgentState, FileProgressState } from '../hooks/useAgent';
 
 interface WorkspacePageProps {
@@ -45,6 +50,196 @@ interface WorkspacePageProps {
 
 type WorkspaceViewMode = 'cards' | 'compact' | 'tasks' | 'review';
 
+const TimelineEntryCard: React.FC<{
+  entry: TimelineEntry;
+  isCompact: boolean;
+  liveOutput: Record<string, string>;
+  onOpenDiffs: () => void;
+}> = React.memo(({ entry, isCompact, liveOutput, onOpenDiffs }) => {
+  if (entry.kind === 'message' && entry.message) {
+    const msg = entry.message;
+    const isUser = msg.role === 'user';
+    const isError = msg.kind === 'error';
+    const isWarning = msg.kind === 'warning';
+    const safeMsgContent = typeof msg.content === 'string' ? msg.content : '';
+
+    if (isUser) {
+      return (
+        <WorkflowCard
+          id={entry.id}
+          type="user"
+          status="info"
+          title="User Request"
+          summary={safeMsgContent}
+          dense={isCompact}
+        />
+      );
+    }
+
+    if (isError) {
+      return (
+        <WorkflowCard
+          id={entry.id}
+          type="error"
+          status="failed"
+          title="Error Encountered"
+          summary={safeMsgContent}
+          dense={isCompact}
+        />
+      );
+    }
+
+    if (isWarning) {
+      return (
+        <WorkflowCard
+          id={entry.id}
+          type="warning"
+          status="info"
+          title="Warning / Note"
+          summary={safeMsgContent}
+          dense={isCompact}
+        />
+      );
+    }
+
+    return (
+      <WorkflowCard
+        id={entry.id}
+        type="assistant"
+        status="success"
+        title="Cluster Assistant"
+        summary={safeMsgContent}
+        dense={isCompact}
+      />
+    );
+  }
+
+  if (entry.kind === 'tool' && entry.call) {
+    const call = entry.call;
+    const status: CardStatus =
+      call.status === 'success'
+        ? 'success'
+        : call.status === 'failed'
+        ? 'failed'
+        : 'running';
+
+    let type: CardType = 'step';
+    let title = `Tool: ${call.name}`;
+    let detail = call.name;
+    let reason: string | undefined = (call.input as any)?.reason;
+    let lines: number | undefined;
+    let additions: number | undefined;
+    let deletions: number | undefined;
+    let sizeBytes: number | undefined;
+
+    if (call.name === 'read_file') {
+      type = 'file_read';
+      const filePath = (call.input as any)?.path || '';
+      detail = filePath;
+      const lineCount = call.result?.data?.lines ?? call.result?.data?.lineCount;
+      lines = lineCount;
+      sizeBytes = call.result?.data?.sizeBytes;
+      title =
+        status === 'running'
+          ? `Reading file: ${filePath}`
+          : status === 'success'
+          ? `Read file: ${filePath}`
+          : `Failed reading: ${filePath}`;
+    } else if (call.name === 'write_file') {
+      type = 'file_write';
+      const filePath = (call.input as any)?.path || '';
+      detail = filePath;
+      const data = call.result?.data as any;
+      lines =
+        data?.lines ??
+        data?.lineCount ??
+        (typeof (call.input as any)?.content === 'string'
+          ? (call.input as any).content.split('\n').length
+          : undefined);
+      additions = data?.additions;
+      deletions = data?.deletions;
+      sizeBytes = data?.sizeBytes;
+      title =
+        status === 'running'
+          ? `Writing file: ${filePath}`
+          : status === 'success'
+          ? `Wrote file: ${filePath}`
+          : `Failed to write: ${filePath}`;
+    } else if (call.name === 'patch_file') {
+      type = 'file_patch';
+      const filePath = (call.input as any)?.path || '';
+      detail = filePath;
+      const data = call.result?.data as any;
+      additions = data?.additions;
+      deletions = data?.deletions;
+      title =
+        status === 'running'
+          ? `Patching file: ${filePath}`
+          : status === 'success'
+          ? `Patched file: ${filePath}`
+          : `Failed to patch: ${filePath}`;
+    } else if (call.name === 'run_command') {
+      type = 'command';
+      const cmd = (call.input as any)?.command || '';
+      detail = cmd;
+      title =
+        status === 'running'
+          ? `Running: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`
+          : status === 'success'
+          ? `Executed: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`
+          : `Command failed: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`;
+    }
+
+    const out =
+      typeof liveOutput[call.id] === 'string'
+        ? liveOutput[call.id]
+        : typeof call.result?.output === 'string'
+        ? call.result.output
+        : undefined;
+
+    const summaryText =
+      call.result?.error?.message ||
+      (status === 'success' && type === 'file_write'
+        ? (call.result?.data as any)?.created
+          ? `Created file with ${lines ?? additions ?? 0} lines.`
+          : `Updated file (+${additions ?? 0} -${deletions ?? 0} lines, ${lines ?? 0} total).`
+        : status === 'success' && type === 'file_patch'
+        ? `Applied patch (+${additions ?? 0} -${deletions ?? 0} lines).`
+        : status === 'success' && type === 'file_read'
+        ? `Inspected file content (${lines ?? 0} lines).`
+        : undefined);
+
+    return (
+      <WorkflowCard
+        id={entry.id}
+        type={type}
+        status={status}
+        title={title}
+        detail={detail}
+        summary={summaryText}
+        output={out}
+        metadata={{
+          durationMs: call.durationMs,
+          exitCode: call.result?.data?.exitCode,
+          reason,
+          lines,
+          additions,
+          deletions,
+          sizeBytes,
+        }}
+        dense={isCompact}
+        onAction={(action) => {
+          if (action === 'view_diff') {
+            onOpenDiffs();
+          }
+        }}
+      />
+    );
+  }
+
+  return null;
+});
+
 export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   sessionTitle,
   entries,
@@ -65,7 +260,12 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   onOpenTasks,
   onOpenDiffs,
 }) => {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [showAllArchived, setShowAllArchived] = useState(false);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const isUserScrolledUpRef = useRef(false);
+
   const [viewMode, setViewMode] = useState<WorkspaceViewMode>(() => {
     try {
       return (localStorage.getItem('cluster:workspace_view_mode') as WorkspaceViewMode) || 'cards';
@@ -74,6 +274,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
     }
   });
   const [showSpecDetails, setShowSpecDetails] = useState(false);
+  const [showPerfModal, setShowPerfModal] = useState(false);
 
   const handleViewModeChange = (mode: WorkspaceViewMode) => {
     setViewMode(mode);
@@ -82,9 +283,44 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
     } catch {}
   };
 
+  const isCompact = viewMode === 'compact';
+
+  // Active / Archived items split
+  const visibleEntries = useMemo(() => {
+    if (entries.length > 45 && !showAllArchived) {
+      return entries.slice(-35);
+    }
+    return entries;
+  }, [entries, showAllArchived]);
+
+  const isVirtualized = visibleEntries.length > 20;
+
+  const {
+    virtualItems,
+    totalHeight,
+    measureElement,
+  } = useVirtualList({
+    itemsCount: isVirtualized ? visibleEntries.length : 0,
+    containerRef: scrollContainerRef,
+    estimateHeight: isCompact ? 65 : 110,
+    overscan: 4,
+  });
+
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const scrolledUp = distanceFromBottom > 100;
+    setIsUserScrolledUp(scrolledUp);
+    isUserScrolledUpRef.current = scrolledUp;
+  };
+
+  // Smart auto-scroll: preserves user position if user scrolled up to read past cards
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [entries.length, streamingText, Object.keys(liveOutput).length]);
+    if (!isUserScrolledUpRef.current && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [entries.length, running, streamingText ? Math.floor(streamingText.length / 50) : 0]);
 
   // Parse streaming reasoning if any
   const streamingThinkMatch = streamingText.match(/<think>([\s\S]*?)(?:<\/think>|$)/);
@@ -107,8 +343,6 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
     const pct = Math.round((done / total) * 100);
     return { total, done, inProgress, failed, pct };
   }, [plan]);
-
-  const isCompact = viewMode === 'compact';
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0a0a0d] min-w-0 overflow-hidden">
@@ -192,6 +426,15 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
               Plan: {plan.steps?.length || 0} steps
             </button>
           )}
+
+          <button
+            onClick={() => setShowPerfModal(true)}
+            title="UI Performance Profiler & Virtualization Diagnostics"
+            className="px-2.5 py-1 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 bg-[#141418] hover:bg-[#1f1f26] border border-[#232328] text-zinc-400 hover:text-cyan-300 transition-colors"
+          >
+            <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">60 FPS</span>
+          </button>
         </div>
       </div>
 
@@ -290,7 +533,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         )}
 
         {/* Main Stream Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0">
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 sm:p-6 min-w-0">
           <div className="max-w-4xl mx-auto space-y-3.5">
             {/* Cognitive Architecture & Strategy Spec Card */}
             {plan && (
@@ -577,188 +820,66 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
               </div>
             )}
 
-            {/* Render Timeline Entries as Cards */}
-            {entries.map((entry) => {
-              if (entry.kind === 'message' && entry.message) {
-                const msg = entry.message;
-                const isUser = msg.role === 'user';
-                const isError = msg.kind === 'error';
-                const isWarning = msg.kind === 'warning';
-                const safeMsgContent = typeof msg.content === 'string' ? msg.content : '';
+            {/* Archived History Collapsible Bar */}
+            {entries.length > 45 && !showAllArchived && (
+              <div className="rounded-xl border border-[#232328] bg-[#121217] p-3 mb-3 flex items-center justify-between shadow-md">
+                <div className="flex items-center gap-2.5 text-xs text-[#a1a1aa]">
+                  <Archive className="w-4 h-4 text-cyan-400" />
+                  <span>
+                    <strong className="text-white">{entries.length - 35} earlier events</strong> archived to maintain peak UI speed
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowAllArchived(true)}
+                  className="text-xs px-3 py-1 rounded-lg bg-[#1a1a20] hover:bg-[#25252e] text-cyan-300 font-medium transition-colors border border-cyan-500/20"
+                >
+                  Show All in Virtual View
+                </button>
+              </div>
+            )}
 
-                if (isUser) {
+            {/* Virtualized or Direct Timeline Stream */}
+            {isVirtualized ? (
+              <div style={{ height: `${totalHeight}px`, position: 'relative' }}>
+                {virtualItems.map(({ index, start }) => {
+                  const entry = visibleEntries[index];
+                  if (!entry) return null;
                   return (
-                    <WorkflowCard
+                    <div
                       key={entry.id}
-                      id={entry.id}
-                      type="user"
-                      status="info"
-                      title="User Request"
-                      summary={safeMsgContent}
-                      dense={isCompact}
-                    />
+                      ref={(node) => measureElement(index, node)}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${start}px)`,
+                        paddingBottom: '12px',
+                      }}
+                    >
+                      <TimelineEntryCard
+                        entry={entry}
+                        isCompact={isCompact}
+                        liveOutput={liveOutput}
+                        onOpenDiffs={onOpenDiffs}
+                      />
+                    </div>
                   );
-                }
-
-                if (isError) {
-                  return (
-                    <WorkflowCard
-                      key={entry.id}
-                      id={entry.id}
-                      type="error"
-                      status="failed"
-                      title="Error Encountered"
-                      summary={safeMsgContent}
-                      dense={isCompact}
-                    />
-                  );
-                }
-
-                if (isWarning) {
-                  return (
-                    <WorkflowCard
-                      key={entry.id}
-                      id={entry.id}
-                      type="warning"
-                      status="info"
-                      title="Warning / Note"
-                      summary={safeMsgContent}
-                      dense={isCompact}
-                    />
-                  );
-                }
-
-                return (
-                  <WorkflowCard
+                })}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visibleEntries.map((entry) => (
+                  <TimelineEntryCard
                     key={entry.id}
-                    id={entry.id}
-                    type="assistant"
-                    status="success"
-                    title="Cluster Assistant"
-                    summary={safeMsgContent}
-                    dense={isCompact}
+                    entry={entry}
+                    isCompact={isCompact}
+                    liveOutput={liveOutput}
+                    onOpenDiffs={onOpenDiffs}
                   />
-                );
-              }
-
-              if (entry.kind === 'tool' && entry.call) {
-                const call = entry.call;
-                const status: CardStatus =
-                  call.status === 'success'
-                    ? 'success'
-                    : call.status === 'failed'
-                    ? 'failed'
-                    : 'running';
-
-                let type: CardType = 'step';
-                let title = call.name;
-                let detail = '';
-                const reason = (call.input as any)?.reason || (call.result?.data as any)?.reason || '';
-                let lines: number | undefined;
-                let additions: number | undefined;
-                let deletions: number | undefined;
-                let sizeBytes: number | undefined;
-
-                if (call.name === 'read_file') {
-                  type = 'file_read';
-                  const filePath = (call.input as any)?.path || '';
-                  detail = filePath;
-                  lines = (call.result?.data as any)?.totalLines;
-                  title =
-                    status === 'running'
-                      ? `Reading file: ${filePath}`
-                      : status === 'success'
-                      ? `Read file: ${filePath}`
-                      : `Failed to read: ${filePath}`;
-                } else if (call.name === 'write_file') {
-                  type = 'file_write';
-                  const filePath = (call.input as any)?.path || '';
-                  detail = filePath;
-                  const data = call.result?.data as any;
-                  lines =
-                    data?.lineCount ??
-                    (typeof (call.input as any)?.content === 'string'
-                      ? (call.input as any).content.split('\n').length
-                      : undefined);
-                  additions = data?.additions;
-                  deletions = data?.deletions;
-                  sizeBytes = data?.sizeBytes;
-                  title =
-                    status === 'running'
-                      ? `Writing file: ${filePath}`
-                      : status === 'success'
-                      ? `Wrote file: ${filePath}`
-                      : `Failed to write: ${filePath}`;
-                } else if (call.name === 'patch_file') {
-                  type = 'file_patch';
-                  const filePath = (call.input as any)?.path || '';
-                  detail = filePath;
-                  const data = call.result?.data as any;
-                  additions = data?.additions;
-                  deletions = data?.deletions;
-                  title =
-                    status === 'running'
-                      ? `Patching file: ${filePath}`
-                      : status === 'success'
-                      ? `Patched file: ${filePath}`
-                      : `Failed to patch: ${filePath}`;
-                } else if (call.name === 'run_command') {
-                  type = 'command';
-                  const cmd = (call.input as any)?.command || '';
-                  detail = cmd;
-                  title =
-                    status === 'running'
-                      ? `Running: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`
-                      : status === 'success'
-                      ? `Executed: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`
-                      : `Command failed: ${cmd.slice(0, 45)}${cmd.length > 45 ? '…' : ''}`;
-                }
-
-                const out =
-                  typeof liveOutput[call.id] === 'string'
-                    ? liveOutput[call.id]
-                    : typeof call.result?.output === 'string'
-                    ? call.result.output
-                    : undefined;
-
-                const summaryText =
-                  call.result?.error?.message ||
-                  (status === 'success' && type === 'file_write'
-                    ? (call.result?.data as any)?.created
-                      ? `Created file with ${lines ?? additions ?? 0} lines.`
-                      : `Updated file (+${additions ?? 0} -${deletions ?? 0} lines, ${lines ?? 0} total).`
-                    : status === 'success' && type === 'file_patch'
-                    ? `Applied patch (+${additions ?? 0} -${deletions ?? 0} lines).`
-                    : status === 'success' && type === 'file_read'
-                    ? `Inspected file content (${lines ?? 0} lines).`
-                    : undefined);
-
-                return (
-                  <WorkflowCard
-                    key={entry.id}
-                    id={entry.id}
-                    type={type}
-                    status={status}
-                    title={title}
-                    detail={detail}
-                    summary={summaryText}
-                    output={out}
-                    metadata={{
-                      durationMs: call.durationMs,
-                      exitCode: call.result?.data?.exitCode,
-                      reason,
-                      lines,
-                      additions,
-                      deletions,
-                      sizeBytes,
-                    }}
-                    dense={isCompact}
-                  />
-                );
-              }
-
-              return null;
-            })}
+                ))}
+              </div>
+            )}
 
             {/* Active streaming / thinking preview cards */}
             {running && isCurrentlyThinking && streamingReasoning && (
@@ -816,6 +937,25 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         </div>
       )}
 
+      {/* Floating Scroll to Bottom Button when detached from bottom */}
+      {isUserScrolledUp && (
+        <div className="absolute bottom-24 right-8 z-30 animate-in fade-in slide-in-from-bottom-2">
+          <button
+            onClick={() => {
+              setIsUserScrolledUp(false);
+              isUserScrolledUpRef.current = false;
+              if (scrollContainerRef.current) {
+                scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+              }
+            }}
+            className="px-3.5 py-2 rounded-full bg-cyan-600/95 hover:bg-cyan-500 text-white text-xs font-semibold shadow-2xl border border-cyan-400/40 flex items-center gap-2 backdrop-blur-md transition-all"
+          >
+            <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
+            <span>New events below</span>
+          </button>
+        </div>
+      )}
+
       {/* Bottom Composer */}
       <div className="p-4 border-t border-[#1e1e24] bg-[#0c0c10]">
         <div className="max-w-4xl mx-auto">
@@ -826,6 +966,15 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
           />
         </div>
       </div>
+
+      {/* Real-time Profiling & Diagnostics Modal */}
+      <PerfDiagnosticsModal
+        isOpen={showPerfModal}
+        onClose={() => setShowPerfModal(false)}
+        entriesCount={entries.length}
+        isVirtualized={isVirtualized}
+        activityCount={activity.length}
+      />
     </div>
   );
 };

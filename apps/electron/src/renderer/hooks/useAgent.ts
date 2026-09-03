@@ -58,13 +58,49 @@ export function useAgent(sessionId: string | null) {
   const [fileProgress, setFileProgress] = useState<FileProgressState | null>(null);
   const [activeSkill, setActiveSkill] = useState<{ skill: any; params: any; rawCommand: string } | null>(null);
 
+  // Performance Optimization: Buffers and Throttle Handles
+  const streamingBufferRef = useRef<string>('');
+  const streamingRafRef = useRef<number | null>(null);
+
+  const toolOutputBufferRef = useRef<Record<string, string>>({});
+  const toolOutputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const activityQueueRef = useRef<string[]>([]);
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Throttled activity push to eliminate state thrashing
   const pushActivity = useCallback((msg: string) => {
-    setActivity(a => [...a.slice(-200), `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    const formatted = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    activityQueueRef.current.push(formatted);
+    if (!activityTimerRef.current) {
+      activityTimerRef.current = setTimeout(() => {
+        activityTimerRef.current = null;
+        if (activityQueueRef.current.length > 0) {
+          const queued = [...activityQueueRef.current];
+          activityQueueRef.current = [];
+          setActivity((prev) => [...prev.slice(-(250 - queued.length)), ...queued]);
+        }
+      }, 75);
+    }
+  }, []);
+
+  // Flush streaming text to state on RAF boundaries (~25-30fps)
+  const flushStreaming = useCallback((immediateText?: string) => {
+    if (streamingRafRef.current !== null) {
+      cancelAnimationFrame(streamingRafRef.current);
+      streamingRafRef.current = null;
+    }
+    const val = immediateText !== undefined ? immediateText : streamingBufferRef.current;
+    streamingBufferRef.current = val;
+    setStreamingText(val);
   }, []);
 
   useEffect(() => {
     if (!sessionId) {
       setEntries([]); setPlan(null); setTaskGraph(null); setEdits([]); setActivity([]); setLiveOutput({}); setJobs([]); setStreamingText(''); setAgentState({ phase:'idle', label:'Ready', iteration:0, maxIterations:40 }); setRunning(false);
+      streamingBufferRef.current = '';
+      toolOutputBufferRef.current = {};
+      activityQueueRef.current = [];
       return;
     }
     if (!isElectron) return;
@@ -91,7 +127,8 @@ export function useAgent(sessionId: string | null) {
     const unsubs = [
       window.cluster.agent.onMessage(({ sessionId: sid, message }) => {
         if (sid !== sessionId) return;
-        setStreamingText('');
+        streamingBufferRef.current = '';
+        flushStreaming('');
         // Skip assistant messages that have no text and no tools
         if (message.role === 'assistant' && !message.content?.trim() && (!message.toolCallIds || message.toolCallIds.length === 0)) {
           return;
@@ -115,45 +152,56 @@ export function useAgent(sessionId: string | null) {
         }
       }),
       window.cluster.agent.onDelta(({ sessionId: sid, text }) => {
-        if (sid!==sessionId) return;
-        setStreamingText(t=>t+text);
+        if (sid !== sessionId) return;
+        streamingBufferRef.current += text;
+        if (streamingRafRef.current === null) {
+          streamingRafRef.current = requestAnimationFrame(() => {
+            streamingRafRef.current = null;
+            setStreamingText(streamingBufferRef.current);
+          });
+        }
       }),
       window.cluster.agent.onToolStart(({ sessionId: sid, call }) => {
-        if (sid!==sessionId) return;
-        setStreamingText('');
-        setEntries(e=>[...e, { kind:'tool', id:call.id, at:call.createdAt, call }]);
-        pushActivity(`→ ${call.name} ${JSON.stringify(call.input).slice(0,80)}`);
-        setAgentState(s=>({...s, phase:'running'}));
+        if (sid !== sessionId) return;
+        streamingBufferRef.current = '';
+        flushStreaming('');
+        setEntries(e => [...e, { kind: 'tool', id: call.id, at: call.createdAt, call }]);
+        pushActivity(`→ ${call.name} ${JSON.stringify(call.input).slice(0, 80)}`);
+        setAgentState(s => ({ ...s, phase: 'running' }));
         setRunning(true);
-        // update task graph to running for related task
         if (call.name) {
-          setTaskGraph(g=> g ? { ...g, tasks: Object.fromEntries(Object.entries(g.tasks).map(([k,v])=> [k, v.status==='pending'||v.status==='ready' ? {...v, status:'running'} : v ])) } : g);
+          setTaskGraph(g => g ? { ...g, tasks: Object.fromEntries(Object.entries(g.tasks).map(([k,v])=> [k, v.status==='pending'||v.status==='ready' ? {...v, status:'running'} : v ])) } : g);
         }
       }),
       window.cluster.agent.onToolEnd(({ sessionId: sid, call }) => {
-        if (sid!==sessionId) return;
-        setEntries(e=> e.map(entry=> entry.kind==='tool' && entry.id===call.id ? {...entry, call} : (entry.id===call.id ? {...entry, call} : entry)));
-        // if call was not found via id, append (fallback for demo where id differs)
-        setEntries(e=>{
-          const exists = e.some(en=> en.id===call.id);
-          if (!exists && call.id) return [...e, { kind:'tool' as const, id:call.id, at: call.finishedAt||new Date().toISOString(), call }];
+        if (sid !== sessionId) return;
+        setEntries(e => e.map(entry => entry.kind==='tool' && entry.id===call.id ? {...entry, call} : (entry.id===call.id ? {...entry, call} : entry)));
+        setEntries(e => {
+          const exists = e.some(en => en.id === call.id);
+          if (!exists && call.id) return [...e, { kind: 'tool' as const, id: call.id, at: call.finishedAt || new Date().toISOString(), call }];
           return e;
         });
         if (call.result?.data?.diff) {
-          setEdits(ed=> {
-            const exists = ed.some((x:any)=> x.path===call.result.data.path && x.diff===call.result.data.diff);
+          setEdits(ed => {
+            const exists = ed.some((x: any) => x.path === call.result.data.path && x.diff === call.result.data.diff);
             if (exists) return ed;
             return [...ed, { path: call.result.data.path, diff: call.result.data.diff, additions: call.result.data.additions ?? 0, deletions: call.result.data.deletions ?? 0, createdAt: call.finishedAt }];
           });
         }
-        pushActivity(`✓ ${call.name} ${call.status} ${call.durationMs?`(${call.durationMs}ms)`:''}`);
-        // live output clear for that call
-        setLiveOutput(lo=>{ const n={...lo}; delete n[call.id]; return n; });
+        pushActivity(`✓ ${call.name} ${call.status} ${call.durationMs ? `(${call.durationMs}ms)` : ''}`);
+        // Clear live output buffer for completed call
+        delete toolOutputBufferRef.current[call.id];
+        setLiveOutput({ ...toolOutputBufferRef.current });
       }),
-      (window.cluster.agent as any).onToolOutput?.(({ sessionId: sid, callId, chunk }:any)=>{
-        if (sid!==sessionId) return;
-        setLiveOutput(prev=>({ ...prev, [callId]: (prev[callId]||'') + chunk }));
-        pushActivity(`output ${callId.slice(0,6)}: ${chunk.slice(0,60)}`);
+      (window.cluster.agent as any).onToolOutput?.(({ sessionId: sid, callId, chunk }: any) => {
+        if (sid !== sessionId) return;
+        toolOutputBufferRef.current[callId] = (toolOutputBufferRef.current[callId] || '') + chunk;
+        if (!toolOutputTimerRef.current) {
+          toolOutputTimerRef.current = setTimeout(() => {
+            toolOutputTimerRef.current = null;
+            setLiveOutput({ ...toolOutputBufferRef.current });
+          }, 75);
+        }
       }),
       window.cluster.agent.onProgress(({ sessionId: sid, message }) => {
         if (sid!==sessionId) return;
@@ -202,7 +250,8 @@ export function useAgent(sessionId: string | null) {
       }),
       (window.cluster.agent as any).onError?.(({ sessionId: sid, error }:any)=>{
         if (sid!==sessionId) return;
-        setStreamingText('');
+        streamingBufferRef.current = '';
+        flushStreaming('');
         pushActivity(`error [${error.source}]: ${error.message}`);
         setAgentState(s=>({...s, phase:'error' as any, label: 'Failed'}));
         setEntries(e => {
@@ -249,7 +298,8 @@ export function useAgent(sessionId: string | null) {
       window.cluster.agent.onDone(({ sessionId: sid, summary, cancelled }) => {
         if (sid!==sessionId) return;
         setRunning(false);
-        setStreamingText('');
+        streamingBufferRef.current = '';
+        flushStreaming('');
         setActiveSkill(null);
         setAgentState(s=>({...s, phase: cancelled ? 'cancelled' : 'done' as any }));
         pushActivity(cancelled ? 'cancelled' : `done: ${summary.slice(0,120)}`);
@@ -259,8 +309,13 @@ export function useAgent(sessionId: string | null) {
         }, 3500);
       }),
     ].filter(Boolean) as (()=>void)[];
-    return ()=> unsubs.forEach(fn=>fn());
-  }, [sessionId, pushActivity, isElectron]);
+    return () => {
+      if (streamingRafRef.current !== null) cancelAnimationFrame(streamingRafRef.current);
+      if (toolOutputTimerRef.current !== null) clearTimeout(toolOutputTimerRef.current);
+      if (activityTimerRef.current !== null) clearTimeout(activityTimerRef.current);
+      unsubs.forEach(fn=>fn());
+    };
+  }, [sessionId, pushActivity, flushStreaming, isElectron]);
 
   const submit = useCallback(async (text: string) => {
     if (!sessionId || !text.trim()) return;
@@ -270,8 +325,10 @@ export function useAgent(sessionId: string | null) {
     setEntries(e=>[...e, { kind:'message', id:userMsg.id, at:userMsg.createdAt, message:userMsg }]);
     setRunning(true);
     setAgentState({ phase:'planning', label:'Planning', iteration:0, maxIterations:40 });
-    setStreamingText('');
+    streamingBufferRef.current = '';
+    flushStreaming('');
     setLiveOutput({});
+    toolOutputBufferRef.current = {};
     setFileProgress(null);
     const isMulti = trimmed.startsWith('/multi ');
     const actualText = isMulti ? trimmed.replace(/^\/multi\s+/, '') : trimmed;
@@ -281,18 +338,20 @@ export function useAgent(sessionId: string | null) {
       pushActivity(`send failed: ${e.message}`);
       setRunning(false);
     }
-  }, [sessionId, pushActivity, isElectron]);
+  }, [sessionId, pushActivity, flushStreaming, isElectron]);
 
   const cancel = useCallback(async () => {
     if (!sessionId) return;
     if (!isElectron) return;
     await window.cluster.agent.cancel(sessionId);
     setRunning(false);
+    streamingBufferRef.current = '';
+    flushStreaming('');
     setFileProgress(null);
     setActiveSkill(null);
     setAgentState(s=>({...s, phase:'cancelled'}));
     pushActivity('cancel requested');
-  }, [sessionId, pushActivity, isElectron]);
+  }, [sessionId, pushActivity, flushStreaming, isElectron]);
 
   const confirm = useCallback((approved:boolean)=>{
     if (!pendingConfirm || !sessionId) return;
@@ -304,11 +363,13 @@ export function useAgent(sessionId: string | null) {
 
   const clear = useCallback(()=>{
     setEntries([]);
-    setStreamingText('');
+    streamingBufferRef.current = '';
+    flushStreaming('');
     setLiveOutput({});
+    toolOutputBufferRef.current = {};
     setFileProgress(null);
     setActiveSkill(null);
-  }, []);
+  }, [flushStreaming]);
 
   return { entries, agentState, running, plan, taskGraph, liveOutput, activity, edits, jobs, streamingText, pendingConfirm, recalledMemories, fileProgress, activeSkill, submit, cancel, confirm, clear, setEntries, setTaskGraph };
 }

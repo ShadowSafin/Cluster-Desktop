@@ -51,7 +51,7 @@ interface MemoryCardProps {
   onInspect: (entry: MemoryEntryUI) => void;
 }
 
-export const MemoryCard: React.FC<MemoryCardProps> = ({
+const MemoryCardComponent: React.FC<MemoryCardProps> = ({
   entry,
   onPin,
   onArchive,
@@ -276,3 +276,16 @@ export const MemoryCard: React.FC<MemoryCardProps> = ({
     </div>
   );
 };
+
+export const MemoryCard = React.memo(MemoryCardComponent, (prev, next) => {
+  return (
+    prev.entry.id === next.entry.id &&
+    prev.entry.updatedAt === next.entry.updatedAt &&
+    prev.entry.pinned === next.entry.pinned &&
+    prev.entry.archived === next.entry.archived &&
+    prev.entry.importance === next.entry.importance &&
+    prev.entry.hits === next.entry.hits &&
+    prev.entry.title === next.entry.title &&
+    prev.entry.value === next.entry.value
+  );
+});

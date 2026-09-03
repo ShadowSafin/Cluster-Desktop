@@ -1,10 +1,92 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { useVirtualList } from '../hooks/useVirtualList';
 
 interface DiffPageProps {
   edits: any[];
   onRollback: (checkpointId: string) => void;
   checkpoints: any[];
 }
+
+const DiffLineRow: React.FC<{ line: string; idx: number }> = React.memo(({ line, idx }) => {
+  let bg = '';
+  let textCol = 'text-[#d4d4d8]';
+  let sign = ' ';
+
+  if (line.startsWith('+') && !line.startsWith('+++')) {
+    bg = 'bg-emerald-950/25';
+    textCol = 'text-emerald-300';
+    sign = '+';
+  } else if (line.startsWith('-') && !line.startsWith('---')) {
+    bg = 'bg-red-950/25';
+    textCol = 'text-red-300';
+    sign = '-';
+  } else if (line.startsWith('@@')) {
+    bg = 'bg-[#18181b]';
+    textCol = 'text-cyan-400 font-bold';
+  }
+
+  return (
+    <div className={`flex font-mono text-[12px] leading-5 px-3 py-0.5 ${bg} hover:bg-white/5`}>
+      <span className="w-8 text-[#52525b] select-none text-right pr-3">{idx + 1}</span>
+      <span className={`w-4 select-none ${textCol}`}>{sign}</span>
+      <span className={`flex-1 whitespace-pre-wrap break-all ${textCol}`}>{line.slice(1) || line}</span>
+    </div>
+  );
+});
+
+const VirtualizedDiffViewer: React.FC<{ diffText?: string }> = React.memo(({ diffText = '' }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lines = useMemo(() => (diffText ? diffText.split('\n') : []), [diffText]);
+
+  const isVirtualized = lines.length > 50;
+
+  const { virtualItems, totalHeight, measureElement } = useVirtualList({
+    itemsCount: isVirtualized ? lines.length : 0,
+    containerRef,
+    estimateHeight: 22,
+    overscan: 10,
+  });
+
+  if (!diffText) {
+    return <div className="p-8 text-center text-xs text-[#71717a]">No diff content available.</div>;
+  }
+
+  if (!isVirtualized) {
+    return (
+      <div className="rounded-xl border border-[#232326] bg-[#0b0b0e] overflow-hidden">
+        {lines.map((line, idx) => (
+          <DiffLineRow key={idx} line={line} idx={idx} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto rounded-xl border border-[#232326] bg-[#0b0b0e] relative h-full min-h-[400px]"
+      style={{ willChange: 'scroll-position' }}
+    >
+      <div style={{ height: `${totalHeight}px`, width: '100%', position: 'relative' }}>
+        {virtualItems.map(({ index, start }) => (
+          <div
+            key={index}
+            ref={(el) => measureElement(index, el)}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${start}px)`,
+            }}
+          >
+            <DiffLineRow line={lines[index]} idx={index} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
 
 export const DiffPage: React.FC<DiffPageProps> = ({
   edits,
@@ -15,42 +97,19 @@ export const DiffPage: React.FC<DiffPageProps> = ({
     edits.length > 0 ? edits[0].path : null
   );
 
-  const totalAdditions = edits.reduce((sum, e) => sum + (e.additions || 0), 0);
-  const totalDeletions = edits.reduce((sum, e) => sum + (e.deletions || 0), 0);
+  const totalAdditions = useMemo(
+    () => edits.reduce((sum, e) => sum + (e.additions || 0), 0),
+    [edits]
+  );
+  const totalDeletions = useMemo(
+    () => edits.reduce((sum, e) => sum + (e.deletions || 0), 0),
+    [edits]
+  );
 
-  const currentEdit = edits.find(e => e.path === selectedPath) || edits[0];
-
-  const renderDiffLines = (diffText: string) => {
-    if (!diffText) return <div className="text-xs text-[#71717a]">No diff content available.</div>;
-
-    const lines = diffText.split('\n');
-    return lines.map((line, idx) => {
-      let bg = '';
-      let textCol = 'text-[#d4d4d8]';
-      let sign = ' ';
-
-      if (line.startsWith('+') && !line.startsWith('+++')) {
-        bg = 'bg-emerald-950/25';
-        textCol = 'text-emerald-300';
-        sign = '+';
-      } else if (line.startsWith('-') && !line.startsWith('---')) {
-        bg = 'bg-red-950/25';
-        textCol = 'text-red-300';
-        sign = '-';
-      } else if (line.startsWith('@@')) {
-        bg = 'bg-[#18181b]';
-        textCol = 'text-cyan-400 font-bold';
-      }
-
-      return (
-        <div key={idx} className={`flex font-mono text-[12px] leading-5 px-3 py-0.5 ${bg} hover:bg-white/5`}>
-          <span className="w-8 text-[#52525b] select-none text-right pr-3">{idx + 1}</span>
-          <span className={`w-4 select-none ${textCol}`}>{sign}</span>
-          <span className={`flex-1 whitespace-pre-wrap break-all ${textCol}`}>{line.slice(1) || line}</span>
-        </div>
-      );
-    });
-  };
+  const currentEdit = useMemo(
+    () => edits.find((e) => e.path === selectedPath) || edits[0],
+    [edits, selectedPath]
+  );
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0a0a0d] overflow-hidden">
@@ -104,8 +163,8 @@ export const DiffPage: React.FC<DiffPageProps> = ({
               Changed Files
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {edits.map(edit => {
-                const isSelected = (selectedPath || edits[0].path) === edit.path;
+              {edits.map((edit) => {
+                const isSelected = (selectedPath || edits[0]?.path) === edit.path;
                 return (
                   <button
                     key={edit.path}
@@ -145,14 +204,12 @@ export const DiffPage: React.FC<DiffPageProps> = ({
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="rounded-xl border border-[#232326] bg-[#0b0b0e] overflow-hidden">
-                {currentEdit ? (
-                  renderDiffLines(currentEdit.diff)
-                ) : (
-                  <div className="p-8 text-center text-xs text-[#71717a]">Select a file from the left to view diff.</div>
-                )}
-              </div>
+            <div className="flex-1 overflow-hidden p-4 flex flex-col min-h-0">
+              {currentEdit ? (
+                <VirtualizedDiffViewer diffText={currentEdit.diff} />
+              ) : (
+                <div className="p-8 text-center text-xs text-[#71717a]">Select a file from the left to view diff.</div>
+              )}
             </div>
           </div>
         </div>
