@@ -64,4 +64,7 @@ export interface AgentEvents {
   'subagent:update': { sessionId: string; subAgent: import('@cluster/shared').SubAgentState };
   'subagent:handoff': { sessionId: string; handoff: import('@cluster/shared').SubAgentHandoff };
   'subagent:done': { sessionId: string; swarmSummary: import('@cluster/shared').SubAgentSwarmSummary };
+  'verification:start': { sessionId: string; turnId: string };
+  'verification:update': { sessionId: string; report: import('@cluster/shared').VerificationReport };
+  'verification:done': { sessionId: string; report: import('@cluster/shared').VerificationReport };
 }

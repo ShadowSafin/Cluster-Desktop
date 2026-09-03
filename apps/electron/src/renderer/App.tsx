@@ -495,6 +495,7 @@ export default function App() {
               subAgents={agent.subAgents}
               handoffs={agent.handoffs}
               swarmSummary={agent.swarmSummary}
+              verificationReport={agent.verificationReport}
               plan={agent.plan}
               onSubmit={onWorkspaceSubmit}
               onCancel={agent.cancel}

@@ -718,8 +718,11 @@ function registerIpc() {
       else if (ev==='subagent:update') emit('agent:subagent:update', { sessionId: payload.sessionId, subAgent: data.subAgent });
       else if (ev==='subagent:handoff') emit('agent:subagent:handoff', { sessionId: payload.sessionId, handoff: data.handoff });
       else if (ev==='subagent:done') emit('agent:subagent:done', { sessionId: payload.sessionId, swarmSummary: data.swarmSummary });
+      else if (ev==='verification:start') emit('agent:verification:start', { sessionId: payload.sessionId, turnId: data.turnId });
+      else if (ev==='verification:update') emit('agent:verification:update', { sessionId: payload.sessionId, report: data.report });
+      else if (ev==='verification:done') emit('agent:verification:done', { sessionId: payload.sessionId, report: data.report });
     });
-    ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done','memory:recalled','file:progress','subagent:spawn','subagent:update','subagent:handoff','subagent:done'].forEach(forwardReal);
+    ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done','memory:recalled','file:progress','subagent:spawn','subagent:update','subagent:handoff','subagent:done','verification:start','verification:update','verification:done'].forEach(forwardReal);
 
     const needConfirm = async (req:any)=>{
       emit('agent:confirm', { sessionId: payload.sessionId, request: req });

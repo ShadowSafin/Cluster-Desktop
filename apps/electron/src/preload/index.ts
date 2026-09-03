@@ -99,6 +99,9 @@ export type IpcApi = {
     onSubAgentUpdate: (cb: (data: { sessionId: string; subAgent: any }) => void) => () => void;
     onSubAgentHandoff: (cb: (data: { sessionId: string; handoff: any }) => void) => () => void;
     onSubAgentDone: (cb: (data: { sessionId: string; swarmSummary: any }) => void) => () => void;
+    onVerificationStart: (cb: (data: { sessionId: string; turnId: string }) => void) => () => void;
+    onVerificationUpdate: (cb: (data: { sessionId: string; report: any }) => void) => () => void;
+    onVerificationDone: (cb: (data: { sessionId: string; report: any }) => void) => () => void;
   };
 };
 
@@ -204,6 +207,9 @@ const api: IpcApi = {
     onSubAgentUpdate: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:subagent:update', h); return () => ipcRenderer.removeListener('agent:subagent:update', h); },
     onSubAgentHandoff: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:subagent:handoff', h); return () => ipcRenderer.removeListener('agent:subagent:handoff', h); },
     onSubAgentDone: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:subagent:done', h); return () => ipcRenderer.removeListener('agent:subagent:done', h); },
+    onVerificationStart: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:verification:start', h); return () => ipcRenderer.removeListener('agent:verification:start', h); },
+    onVerificationUpdate: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:verification:update', h); return () => ipcRenderer.removeListener('agent:verification:update', h); },
+    onVerificationDone: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:verification:done', h); return () => ipcRenderer.removeListener('agent:verification:done', h); },
   },
 };
 

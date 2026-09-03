@@ -16,3 +16,4 @@ export * from './agents/backendBuilderAgent.js';
 export * from './coordinator.js';
 export * from './orchestrator.js';
 export * from './stateMachine.js';
+export * from './verificationEngine.js';

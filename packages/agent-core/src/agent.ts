@@ -11,7 +11,10 @@ import {
   type ToolCall,
   type ToolStatus,
   type WorkspaceInfo,
+  type VerificationReport,
+  type RepairAttempt,
 } from '@cluster/shared';
+import { VerificationEngine } from './verificationEngine.js';
 import {
   capMiddle,
   riskOf,
@@ -279,6 +282,124 @@ export class AgentLoop {
       }
     }
 
+    // Verification, Self-Critique, and Automatic Self-Repair Loop
+    let verificationReport: VerificationReport | null = null;
+    const shouldVerify = (this.madeEdits || this.changedFiles.size > 0) && !cancelled && !signal.aborted;
+
+    if (shouldVerify) {
+      const turnId = createId('turn');
+      const verifier = new VerificationEngine({
+        projectRoot: deps.projectRoot,
+        sessionId: deps.sessionId,
+        turnId,
+        signal,
+        emitActivity: (msg) => {
+          events.emit('progress', { message: msg });
+        },
+      });
+
+      this.emitState('verifying', 'Verifying File Correctness & Layout', iterations, maxIterations);
+      events.emit('verification:start', { sessionId: deps.sessionId, turnId });
+
+      const repairAttempts: RepairAttempt[] = [];
+      const changedFilesList = Array.from(this.changedFiles);
+
+      verificationReport = await verifier.runVerificationPass(changedFilesList, userInput, turnId, repairAttempts);
+      this.emitState('critiquing', 'Self-Critique Review', iterations, maxIterations);
+      events.emit('verification:update', { sessionId: deps.sessionId, report: verificationReport });
+
+      // Automatic Repair Loop: attempt to repair if completion gate failed
+      const maxRepairs = 2;
+      let repairCount = 0;
+
+      while (!verificationReport.gateAccepted && repairCount < maxRepairs && !signal.aborted) {
+        repairCount++;
+        this.emitState('repairing', `Repairing Detected Issues (Pass ${repairCount}/${maxRepairs})`, iterations, maxIterations);
+
+        const failedChecks = verificationReport.checks
+          .filter((c) => c.status === 'failed')
+          .map((c) => `- [${c.category}] ${c.title}: ${c.message} (${c.file ?? ''})`)
+          .join('\n');
+
+        const repairPrompt =
+          `The automatic verification pass identified issues that must be repaired before finishing:\n${failedChecks}\n\n` +
+          `Please inspect the affected files, correct the issues using your file editing tools, and ensure imports resolve, layout is stable without overlap, and all controls are wired.`;
+
+        this.messages.push({ role: 'user', content: repairPrompt });
+
+        const repairMsgId = createId('msg');
+        const outcome = await this.callModel(repairMsgId, signal);
+        if (outcome.response) {
+          usage.prompt += outcome.response.usage.prompt;
+          usage.completion += outcome.response.usage.completion;
+          usage.total += outcome.response.usage.total;
+
+          const toolCalls =
+            outcome.response.toolCalls.length > 0
+              ? outcome.response.toolCalls
+              : this.toolCallsFromText(outcome.response.content);
+
+          if (outcome.response.content.trim() !== '') {
+            events.emit(
+              'message',
+              this.makeMessage('assistant', outcome.response.content, 'chat', toolCalls.map((c) => c.id), repairMsgId),
+            );
+          }
+
+          this.messages.push({
+            role: 'assistant',
+            content: outcome.response.content === '' ? null : outcome.response.content,
+            ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+          });
+
+          if (toolCalls.length > 0) {
+            await this.runToolCalls(toolCalls, repairMsgId, signal);
+          }
+
+          repairAttempts.push({
+            attempt: repairCount,
+            timestamp: new Date().toISOString(),
+            issuesAddressed: verificationReport.checks.filter((c) => c.status === 'failed').map((c) => c.title),
+            targetFiles: Array.from(this.changedFiles),
+            actionsTaken: toolCalls.map((c) => c.function?.name || 'tool'),
+            success: true,
+          });
+
+          this.emitState('re-verifying', `Re-verifying After Repair (Pass ${repairCount})`, iterations, maxIterations);
+          verificationReport = await verifier.runVerificationPass(
+            Array.from(this.changedFiles),
+            userInput,
+            turnId,
+            repairAttempts,
+          );
+          events.emit('verification:update', { sessionId: deps.sessionId, report: verificationReport });
+        } else {
+          break;
+        }
+      }
+
+      // Strong completion gate: mark passed or needs-work
+      if (verificationReport.gateAccepted) {
+        verificationReport.status = 'passed';
+      } else {
+        verificationReport.status = 'needs-work';
+      }
+
+      events.emit('verification:done', { sessionId: deps.sessionId, report: verificationReport });
+
+      // Emit verification result card into timeline
+      const verMsg = this.makeMessage(
+        'assistant',
+        verificationReport.summary,
+        'verification',
+        [],
+        createId('msg'),
+      );
+      (verMsg as any).meta = { verificationReport };
+      events.emit('message', verMsg);
+      this.messages.push({ role: 'assistant', content: `[Verification Report]\n${verificationReport.summary}` });
+    }
+
     // Ensure a clear final assistant summary is ALWAYS produced and emitted
     const lastMsg = this.messages[this.messages.length - 1];
     const hasFinalAssistantText =
@@ -290,8 +411,20 @@ export class AgentLoop {
     if (!hasFinalAssistantText && !cancelled && !signal.aborted) {
       const finalMsgId = createId('msg');
       try {
-        const finalPrompt =
-          'All requested operations have concluded. Provide a clear, structured final summary of everything that was done, files inspected or modified, and verification results.';
+        const finalPrompt = verificationReport
+          ? `All operations and verification passes have concluded.\n` +
+            `Verification Gate: ${verificationReport.gateAccepted ? 'Accepted / Clean' : 'Needs Work'}\n` +
+            `Checks: ${verificationReport.checks.filter((c) => c.status === 'passed').length}/${verificationReport.checks.length} passed.\n` +
+            `Repairs applied: ${verificationReport.repairs.length}.\n\n` +
+            `Provide a clear senior engineering final summary:\n` +
+            `1. What was built\n` +
+            `2. What was checked\n` +
+            `3. What issues were found\n` +
+            `4. What was fixed\n` +
+            `5. What remains (if anything)\n` +
+            `6. Whether the final result is safe to use.`
+          : 'All requested operations have concluded. Provide a clear, structured final summary of everything that was done, files inspected or modified, and outcome.';
+
         const completion = await this.deps.provider.complete({
           messages: [
             { role: 'system', content: this.systemPrompt },
@@ -311,7 +444,7 @@ export class AgentLoop {
       } catch {
         if (!summary) {
           summary = this.madeEdits
-            ? 'Completed requested code changes.'
+            ? 'Completed requested code changes and verification.'
             : 'Completed requested operations.';
           events.emit(
             'message',
@@ -332,22 +465,17 @@ export class AgentLoop {
       });
     }
 
-    if (this.madeEdits && !this.ranCommand && !cancelled) {
-      events.emit(
-        'message',
-        this.makeMessage(
-          'assistant',
-          'Note: files were changed but no verification command was run. ' +
-            'Consider running the project build or tests to confirm the change.',
-          'warning',
-        ),
-      );
-    }
+    const finalPhase: AgentPhase = cancelled
+      ? 'cancelled'
+      : error
+      ? 'error'
+      : verificationReport && !verificationReport.gateAccepted
+      ? 'needs-work'
+      : 'done';
 
-    const finalPhase: AgentPhase = cancelled ? 'cancelled' : error ? 'error' : 'done';
     this.emitState(
       finalPhase,
-      cancelled ? 'Cancelled' : error ? 'Failed' : 'Done',
+      cancelled ? 'Cancelled' : error ? 'Failed' : finalPhase === 'needs-work' ? 'Needs Work' : 'Complete',
       iterations,
       maxIterations,
     );
@@ -355,7 +483,13 @@ export class AgentLoop {
     if (this.currentPlan) {
       for (const step of this.currentPlan.steps) {
         if (step.status === 'pending' || step.status === 'in-progress') {
-          step.status = cancelled ? 'skipped' : error ? 'failed' : 'done';
+          step.status = cancelled
+            ? 'skipped'
+            : error
+            ? 'failed'
+            : finalPhase === 'needs-work'
+            ? 'failed'
+            : 'done';
         }
       }
       events.emit('plan', { ...this.currentPlan, steps: [...this.currentPlan.steps] });

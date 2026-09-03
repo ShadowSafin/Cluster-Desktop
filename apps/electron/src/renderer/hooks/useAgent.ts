@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { SubAgentState, SubAgentHandoff, SubAgentSwarmSummary } from '@cluster/shared';
+import type { SubAgentState, SubAgentHandoff, SubAgentSwarmSummary, VerificationReport, AgentPhase } from '@cluster/shared';
 
-export type AgentPhase = 'idle'|'planning'|'thinking'|'reading'|'editing'|'running'|'verifying'|'summarizing'|'waiting'|'done'|'error'|'cancelled';
+export type { AgentPhase };
 export interface AgentState {
   phase: AgentPhase;
   label: string;
@@ -61,6 +61,7 @@ export function useAgent(sessionId: string | null) {
   const [recalledMemories, setRecalledMemories] = useState<any[]>([]);
   const [fileProgress, setFileProgress] = useState<FileProgressState | null>(null);
   const [activeSkill, setActiveSkill] = useState<{ skill: any; params: any; rawCommand: string } | null>(null);
+  const [verificationReport, setVerificationReport] = useState<VerificationReport | null>(null);
 
   // Performance Optimization: Buffers and Throttle Handles
   const streamingBufferRef = useRef<string>('');
@@ -317,6 +318,20 @@ export function useAgent(sessionId: string | null) {
         if (sid !== sessionId) return;
         setSwarmSummary(swarmSummary);
       }),
+      (window.cluster.agent as any).onVerificationStart?.(({ sessionId: sid }: any) => {
+        if (sid !== sessionId) return;
+        pushActivity('🛡️ Automatic verification pass started');
+      }),
+      (window.cluster.agent as any).onVerificationUpdate?.(({ sessionId: sid, report }: any) => {
+        if (sid !== sessionId) return;
+        setVerificationReport(report);
+        pushActivity(`🛡️ Verification: ${report.status} (${report.checks.filter((c: any) => c.status === 'passed').length}/${report.checks.length} checks)`);
+      }),
+      (window.cluster.agent as any).onVerificationDone?.(({ sessionId: sid, report }: any) => {
+        if (sid !== sessionId) return;
+        setVerificationReport(report);
+        pushActivity(`🛡️ Verification complete: ${report.gateAccepted ? 'Accepted' : 'Needs Work'}`);
+      }),
       window.cluster.agent.onDone(({ sessionId: sid, summary, cancelled }) => {
         if (sid!==sessionId) return;
         setRunning(false);
@@ -355,6 +370,7 @@ export function useAgent(sessionId: string | null) {
     setSubAgents({});
     setHandoffs([]);
     setSwarmSummary(null);
+    setVerificationReport(null);
     const isMulti = trimmed.startsWith('/multi ');
     const actualText = isMulti ? trimmed.replace(/^\/multi\s+/, '') : trimmed;
     try {
@@ -397,6 +413,7 @@ export function useAgent(sessionId: string | null) {
     setSubAgents({});
     setHandoffs([]);
     setSwarmSummary(null);
+    setVerificationReport(null);
   }, [flushStreaming]);
 
   return {
@@ -408,6 +425,7 @@ export function useAgent(sessionId: string | null) {
     subAgents,
     handoffs,
     swarmSummary,
+    verificationReport,
     liveOutput,
     activity,
     edits,

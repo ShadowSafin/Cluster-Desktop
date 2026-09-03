@@ -14,7 +14,6 @@ export type IsoDateTime = string;
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
-/** Distinguishes how a message should be rendered, independent of its role. */
 export type MessageKind =
   | 'chat'
   | 'plan'
@@ -22,7 +21,8 @@ export type MessageKind =
   | 'error'
   | 'warning'
   | 'info'
-  | 'tool-result';
+  | 'tool-result'
+  | 'verification';
 
 export interface Message {
   id: string;
@@ -205,11 +205,16 @@ export type AgentPhase =
   | 'thinking'
   | 'reading'
   | 'editing'
+  | 'building'
   | 'running'
   | 'verifying'
+  | 'critiquing'
+  | 'repairing'
+  | 're-verifying'
   | 'summarizing'
   | 'waiting'
   | 'done'
+  | 'needs-work'
   | 'error'
   | 'cancelled';
 

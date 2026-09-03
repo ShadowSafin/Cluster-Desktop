@@ -25,11 +25,13 @@ import { WorkflowCard, type CardType, type CardStatus } from '../components/Work
 import { FileProgressCard } from '../components/FileProgressCard';
 import { SubAgentSwarmPanel } from '../components/SubAgentSwarmPanel';
 import { SubAgentSummaryCard } from '../components/SubAgentSummaryCard';
+import { VerificationCard } from '../components/VerificationCard';
+import { VerificationActiveBanner } from '../components/VerificationActiveBanner';
 import { PerfDiagnosticsModal } from '../components/PerfDiagnosticsModal';
 import { ClusterLogo } from '../components/ClusterLogo';
 import { useVirtualList } from '../hooks/useVirtualList';
 import type { TimelineEntry, AgentState, FileProgressState } from '../hooks/useAgent';
-import type { SubAgentState, SubAgentHandoff, SubAgentSwarmSummary } from '@cluster/shared';
+import type { SubAgentState, SubAgentHandoff, SubAgentSwarmSummary, VerificationReport } from '@cluster/shared';
 
 interface WorkspacePageProps {
   sessionTitle: string;
@@ -48,6 +50,7 @@ interface WorkspacePageProps {
   recalledMemories?: any[];
   fileProgress?: FileProgressState | null;
   activeSkill?: { skill: any; params: any; rawCommand: string } | null;
+  verificationReport?: VerificationReport | null;
   onSubmit: (text: string) => void;
   onCancel: () => void;
   onConfirm: (approved: boolean) => void;
@@ -68,6 +71,14 @@ const TimelineEntryCard: React.FC<{
     const isUser = msg.role === 'user';
     const isError = msg.kind === 'error';
     const isWarning = msg.kind === 'warning';
+    const isVerification = msg.kind === 'verification' || Boolean(msg.meta?.verificationReport);
+    if (isVerification) {
+      const report = msg.meta?.verificationReport || (typeof msg.content === 'object' ? msg.content : null);
+      if (report && report.checks) {
+        return <VerificationCard report={report} dense={isCompact} />;
+      }
+    }
+
     const safeMsgContent = typeof msg.content === 'string' ? msg.content : '';
 
     if (isUser) {
@@ -799,6 +810,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             {fileProgress && (
               <FileProgressCard progress={fileProgress} dense={isCompact} />
             )}
+
+            {/* Live Single-Agent Verification, Critique & Self-Repair Banner */}
+            <VerificationActiveBanner phase={agentState.phase} label={agentState.label} dense={isCompact} />
 
             {/* Live Sub-Agent Swarm Status & Handoff Feed */}
             {subAgents && Object.keys(subAgents).length > 0 && (
