@@ -19,6 +19,7 @@ import { SkillsPage } from './pages/SkillsPage';
 import { ProviderPage } from './pages/ProviderPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ModelSelectorModal } from './components/ModelSelectorModal';
+import { EffortSelectorModal, EffortLevel } from './components/EffortSelectorModal';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageId>('workspace');
@@ -35,6 +36,14 @@ export default function App() {
   const [showPalette, setShowPalette] = useState(false);
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showEffortSelector, setShowEffortSelector] = useState(false);
+  const [effort, setEffort] = useState<EffortLevel>(() => {
+    try {
+      return (localStorage.getItem('cluster:effort') as EffortLevel) || 'balanced';
+    } catch {
+      return 'balanced';
+    }
+  });
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>(() => {
     try {
       const saved = localStorage.getItem('cluster:recent_workspaces');
@@ -193,6 +202,20 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to change model:', err);
+    }
+  }, [projectRoot]);
+
+  const handleEffortChange = useCallback(async (newEffort: EffortLevel) => {
+    setEffort(newEffort);
+    try {
+      localStorage.setItem('cluster:effort', newEffort);
+    } catch {}
+    try {
+      if (typeof window.cluster !== 'undefined' && window.cluster.config?.set) {
+        await window.cluster.config.set('effort', newEffort, projectRoot);
+      }
+    } catch (err) {
+      console.error('Failed to set effort:', err);
     }
   }, [projectRoot]);
 
@@ -413,7 +436,7 @@ export default function App() {
 
   const onWorkspaceSubmit = (text: string) => {
     if (handleSlashCommand(text)) return;
-    agent.submit(text);
+    agent.submit(text, effort);
   };
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
@@ -436,6 +459,7 @@ export default function App() {
 
     const actionItems = [
       { id: 'action:switch-model', label: 'Change Active Model...', detail: 'Select LLM model for this workspace' },
+      { id: 'action:switch-effort', label: 'Change Reasoning Effort...', detail: `Current: ${effort.toUpperCase()} · Low, Balanced, or High` },
       { id: 'action:open-folder', label: 'Open Workspace Folder...', detail: 'Browse directory with native picker · Ctrl+O', hotkey: 'Ctrl+O' },
       { id: 'action:switch-workspace', label: 'Switch Workspace...', detail: 'Browse recent workspaces or enter path' },
       { id: 'action:new-session', label: 'Create New Session', detail: 'Start fresh session' },
@@ -456,7 +480,7 @@ export default function App() {
     }));
 
     return [...pageItems, ...actionItems, ...workspaceItems, ...sessionItems];
-  }, [sessions, recentWorkspaces]);
+  }, [sessions, recentWorkspaces, effort]);
 
   const handlePaletteSelect = (id: string) => {
     setShowPalette(false);
@@ -469,6 +493,8 @@ export default function App() {
       setCurrentPage('workspace');
     } else if (id === 'action:switch-model') {
       setShowModelSelector(true);
+    } else if (id === 'action:switch-effort') {
+      setShowEffortSelector(true);
     } else if (id === 'action:open-folder') {
       handleOpenFolderDialog();
     } else if (id === 'action:switch-workspace') {
@@ -574,6 +600,9 @@ export default function App() {
               onOpenDiffs={() => setCurrentPage('diff')}
               onOpenWorkspaceSwitcher={() => setShowWorkspaceSwitcher(true)}
               onOpenModelSelector={() => setShowModelSelector(true)}
+              effort={effort}
+              onOpenEffortSelector={() => setShowEffortSelector(true)}
+              onSelectEffort={handleEffortChange}
               recalledMemories={agent.recalledMemories}
               fileProgress={agent.fileProgress}
               activeSkill={agent.activeSkill}
@@ -713,13 +742,22 @@ export default function App() {
         onRemoveRecent={removeRecentWorkspace}
       />
 
-      {/* Global Model Selector Modal */}
+      {/* Global Model Selector Modal (Fetches from live provider) */}
       <ModelSelectorModal
         open={showModelSelector}
         onClose={() => setShowModelSelector(false)}
-        currentModel={config?.model || activeSession?.model || 'claude-3-5-sonnet-20241022'}
+        currentModel={config?.model || activeSession?.model || 'agnes-2.5-flash'}
         onSelectModel={handleModelChange}
+        projectRoot={projectRoot}
         onOpenProviderSettings={() => setCurrentPage('provider')}
+      />
+
+      {/* Global Effort Selector Modal */}
+      <EffortSelectorModal
+        open={showEffortSelector}
+        onClose={() => setShowEffortSelector(false)}
+        currentEffort={effort}
+        onSelectEffort={handleEffortChange}
       />
     </div>
   );

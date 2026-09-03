@@ -50,6 +50,8 @@ export interface AgentConfig {
   confirmAllCommands: boolean;
   /** Characters of tool output fed back to the model. */
   maxToolOutputChars: number;
+  /** Reasoning and verification effort level: low, balanced, or high. */
+  effort?: 'low' | 'balanced' | 'high';
 }
 
 export const DEFAULT_CONFIG: Omit<AgentConfig, 'apiKey'> = {

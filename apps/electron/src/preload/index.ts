@@ -76,7 +76,7 @@ export type IpcApi = {
     get: (projectRoot?: string) => Promise<any>;
   };
   agent: {
-    send: (payload: { sessionId: string; text: string; mode?: 'single'|'multi' }) => Promise<any>;
+    send: (payload: { sessionId: string; text: string; mode?: 'single'|'multi'; effort?: 'low' | 'balanced' | 'high' }) => Promise<any>;
     cancel: (sessionId: string) => Promise<any>;
     confirm: (sessionId:string, requestId:string, approved:boolean)=>void;
     onMemoryRecalled: (cb: (data: { sessionId: string; memories: any[] })=>void) => () => void;

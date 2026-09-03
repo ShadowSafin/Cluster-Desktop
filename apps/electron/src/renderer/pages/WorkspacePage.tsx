@@ -23,6 +23,7 @@ import { WorkspaceRightPanels } from '../components/WorkspaceRightPanels';
 import { ClusterLogo } from '../components/ClusterLogo';
 import type { TimelineEntry, AgentState, FileProgressState } from '../hooks/useAgent';
 import type { SubAgentState, SubAgentHandoff, SubAgentSwarmSummary, VerificationReport } from '@cluster/shared';
+import { EffortLevel } from '../components/EffortSelectorModal';
 
 interface WorkspacePageProps {
   sessionTitle: string;
@@ -32,7 +33,7 @@ interface WorkspacePageProps {
   streamingText: string;
   liveOutput: Record<string, string>;
   activity: string[];
-  pendingConfirm: any;
+  pendingConfirm: { tool: string; reason: string } | null;
   taskGraph: any;
   subAgents?: Record<string, SubAgentState>;
   handoffs?: SubAgentHandoff[];
@@ -48,6 +49,7 @@ interface WorkspacePageProps {
   model?: string;
   provider?: string;
   edits?: any[];
+  effort?: EffortLevel;
   onSubmit: (text: string) => void;
   onCancel: () => void;
   onConfirm: (approved: boolean) => void;
@@ -55,6 +57,8 @@ interface WorkspacePageProps {
   onOpenDiffs: () => void;
   onOpenWorkspaceSwitcher?: () => void;
   onOpenModelSelector?: () => void;
+  onOpenEffortSelector?: () => void;
+  onSelectEffort?: (effort: EffortLevel) => void;
 }
 
 type TabMode = 'chat' | 'plan' | 'files';
@@ -220,6 +224,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   onOpenDiffs,
   onOpenWorkspaceSwitcher,
   onOpenModelSelector,
+  effort = 'balanced',
+  onOpenEffortSelector,
+  onSelectEffort,
 }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('chat');
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
@@ -442,6 +449,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
               onCancel={onCancel}
               model={model}
               onOpenModelSelector={onOpenModelSelector}
+              effort={effort}
+              onOpenEffortSelector={onOpenEffortSelector}
+              onSelectEffort={onSelectEffort}
             />
           </div>
         </div>
@@ -458,9 +468,11 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         gitBranch={gitBranch}
         model={model}
         provider={provider}
+        effort={effort}
         onOpenDiffs={onOpenDiffs}
         onOpenTasks={onOpenTasks}
         onOpenModelSelector={onOpenModelSelector}
+        onOpenEffortSelector={onOpenEffortSelector}
       />
     </div>
   );

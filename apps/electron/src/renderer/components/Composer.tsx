@@ -11,8 +11,10 @@ import {
   Sliders,
   Bot,
   ChevronDown,
+  Check,
 } from 'lucide-react';
 import { getModelDisplayName } from './ModelSelectorModal';
+import { EffortLevel, formatEffortDisplayName } from './EffortSelectorModal';
 
 interface Props {
   onSubmit: (text: string) => void;
@@ -22,6 +24,9 @@ interface Props {
   placeholder?: string;
   model?: string;
   onOpenModelSelector?: () => void;
+  effort?: EffortLevel;
+  onOpenEffortSelector?: () => void;
+  onSelectEffort?: (effort: EffortLevel) => void;
 }
 
 interface CommandItem {
@@ -47,16 +52,33 @@ export const Composer: React.FC<Props> = ({
   placeholder,
   model = 'Claude 3.5 Sonnet',
   onOpenModelSelector,
+  effort = 'balanced',
+  onOpenEffortSelector,
+  onSelectEffort,
 }) => {
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<'ask' | 'command'>('ask');
   const [skills, setSkills] = useState<CommandItem[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [showEffortDropdown, setShowEffortDropdown] = useState(false);
+  const effortDropdownRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     ref.current?.focus();
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (effortDropdownRef.current && !effortDropdownRef.current.contains(e.target as Node)) {
+        setShowEffortDropdown(false);
+      }
+    };
+    if (showEffortDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEffortDropdown]);
 
   // Fetch installed skills for autocomplete
   useEffect(() => {
@@ -254,14 +276,61 @@ export const Composer: React.FC<Props> = ({
             <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
           </button>
 
-          <button
-            type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16161b] hover:bg-[#1d1d23] border border-[#23232a] text-[11px] font-mono text-zinc-300 transition-colors cursor-pointer"
-          >
-            <Sliders className="w-3.5 h-3.5 text-zinc-500" />
-            <span>Balanced</span>
-            <ChevronDown className="w-3 h-3 text-zinc-500" />
-          </button>
+          <div className="relative" ref={effortDropdownRef}>
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenEffortSelector) {
+                  onOpenEffortSelector();
+                } else {
+                  setShowEffortDropdown((v) => !v);
+                }
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16161b] hover:bg-[#1f1f26] border border-[#23232a] hover:border-[#32323e] text-[11px] font-mono text-zinc-300 hover:text-white transition-all cursor-pointer group"
+              title="Click to adjust reasoning effort (Low, Balanced, High)"
+            >
+              <Sliders className="w-3.5 h-3.5 text-zinc-400 group-hover:text-cyan-400 transition-colors" />
+              <span>{formatEffortDisplayName(effort)}</span>
+              <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+            </button>
+
+            {showEffortDropdown && (
+              <div className="absolute bottom-full mb-1.5 left-0 w-48 rounded-xl bg-[#0e0e12] border border-[#23232a] shadow-2xl py-1 z-30 animate-in fade-in select-none text-xs">
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-[#1b1b22]">
+                  Reasoning Effort
+                </div>
+                {(['low', 'balanced', 'high'] as EffortLevel[]).map((eff) => {
+                  const isCur = (effort || 'balanced') === eff;
+                  const label = formatEffortDisplayName(eff);
+                  const subtext =
+                    eff === 'low'
+                      ? 'Fast & concise'
+                      : eff === 'balanced'
+                      ? 'Standard (Default)'
+                      : 'Deep reasoning';
+                  return (
+                    <button
+                      key={eff}
+                      type="button"
+                      onClick={() => {
+                        onSelectEffort?.(eff);
+                        setShowEffortDropdown(false);
+                      }}
+                      className={`w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer ${
+                        isCur ? 'bg-[#181820] text-white' : 'text-zinc-400 hover:bg-[#141418] hover:text-zinc-200'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-medium text-xs text-white">{label}</div>
+                        <div className="text-[10px] text-zinc-500">{subtext}</div>
+                      </div>
+                      {isCur && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Action icons & Send button */}

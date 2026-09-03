@@ -10,9 +10,11 @@ import {
   Activity,
   ListTodo,
   ChevronDown,
+  Sliders,
 } from 'lucide-react';
 import type { Plan } from '@cluster/shared';
 import { getModelDisplayName } from './ModelSelectorModal';
+import { EffortLevel, formatEffortDisplayName } from './EffortSelectorModal';
 
 export interface WorkspaceRightPanelsProps {
   plan?: Plan | null;
@@ -24,10 +26,12 @@ export interface WorkspaceRightPanelsProps {
   gitBranch?: string | null;
   model?: string;
   provider?: string;
+  effort?: EffortLevel;
   onOpenDiffs?: () => void;
   onOpenTasks?: () => void;
   onOpenLogs?: () => void;
   onOpenModelSelector?: () => void;
+  onOpenEffortSelector?: () => void;
 }
 
 export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
@@ -40,10 +44,12 @@ export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
   gitBranch,
   model = 'Claude 3.5 Sonnet',
   provider = 'Anthropic',
+  effort = 'balanced',
   onOpenDiffs,
   onOpenTasks,
   onOpenLogs,
   onOpenModelSelector,
+  onOpenEffortSelector,
 }) => {
   // Compute real plan steps from plan or taskGraph (NO hardcoded mock steps!)
   const steps = React.useMemo(() => {
@@ -266,6 +272,20 @@ export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
               <span className="text-zinc-400 group-hover:text-zinc-200">Model</span>
               <span className="font-mono text-zinc-300 group-hover:text-white truncate max-w-[140px] flex items-center gap-1">
                 <span>{getModelDisplayName(model)}</span>
+                <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 shrink-0" />
+              </span>
+            </div>
+            <div
+              onClick={onOpenEffortSelector}
+              className="flex items-center justify-between p-1 -mx-1 rounded-lg hover:bg-[#18181f] cursor-pointer transition-colors group"
+              title="Click to adjust reasoning effort (Low, Balanced, High)"
+            >
+              <span className="text-zinc-400 group-hover:text-zinc-200 flex items-center gap-1.5">
+                <Sliders className="w-3 h-3 text-zinc-500 group-hover:text-cyan-400" />
+                <span>Effort</span>
+              </span>
+              <span className="font-mono text-zinc-300 group-hover:text-white truncate max-w-[140px] flex items-center gap-1">
+                <span>{formatEffortDisplayName(effort)}</span>
                 <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 shrink-0" />
               </span>
             </div>

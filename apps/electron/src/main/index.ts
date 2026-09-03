@@ -429,7 +429,7 @@ function registerIpc() {
     }
   }
 
-  ipcMain.handle('agent:send', async (event, payload: { sessionId: string; text: string; mode?: 'single'|'multi' }) => {
+  ipcMain.handle('agent:send', async (event, payload: { sessionId: string; text: string; mode?: 'single'|'multi'; effort?: 'low' | 'balanced' | 'high' }) => {
     const store = await getStore();
     const session = store.getSession(payload.sessionId);
     if (!session) throw new Error('Session not found');
@@ -688,7 +688,10 @@ function registerIpc() {
       await store.flush();
     }
     const isMulti = payload.mode === 'multi';
-    const provider = new ModelProvider({ ...cfg, model: activeModel });
+    const effort = payload.effort || cfg?.effort || 'balanced';
+    const maxIterations = cfg?.maxIterations ?? (effort === 'low' ? 15 : effort === 'high' ? 80 : 40);
+    const temperature = cfg?.temperature ?? (effort === 'low' ? 0.1 : effort === 'high' ? 0.3 : 0.2);
+    const provider = new ModelProvider({ ...cfg, model: activeModel, effort, temperature, maxIterations });
     const registry = isMulti ? createPhase2Registry() : createDefaultRegistry();
     const events = new Emitter<any>((e:any)=>console.error(e));
     const controller = new AbortController();
@@ -1180,11 +1183,17 @@ function registerIpc() {
           const fetched = rawList.map((m: any) => {
             const id = typeof m === 'string' ? m : m.id || m.name || String(m);
             const owned = typeof m === 'object' && m !== null ? m.owned_by || m.details?.family || '' : '';
+            const contextWindow = typeof m === 'object' && m !== null && m.context_window ? m.context_window : undefined;
+            const reasoning = typeof m === 'object' && m !== null ? Boolean(m.reasoning) : false;
+            const vision = typeof m === 'object' && m !== null ? Boolean(m.vision) : false;
             return {
               id,
               name: id,
-              provider: owned ? `Owned by ${owned}` : 'Discovered via endpoint',
-              description: typeof m === 'object' && m.description ? m.description : `Available on ${cleanBase}`,
+              provider: owned || 'Provider Endpoint',
+              contextWindow,
+              reasoning,
+              vision,
+              description: typeof m === 'object' && m.description ? m.description : (owned ? `${owned} · ${cleanBase}` : `Available on ${cleanBase}`),
             };
           });
 

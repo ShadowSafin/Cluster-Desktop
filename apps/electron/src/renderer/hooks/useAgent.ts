@@ -354,14 +354,15 @@ export function useAgent(sessionId: string | null) {
     };
   }, [sessionId, pushActivity, flushStreaming, isElectron]);
 
-  const submit = useCallback(async (text: string) => {
+  const submit = useCallback(async (text: string, effort?: 'low' | 'balanced' | 'high') => {
     if (!sessionId || !text.trim()) return;
     if (!isElectron) { pushActivity('Cannot send: not in Electron (no preload)'); return; }
     const trimmed = text.trim();
     const userMsg = { id:`msg-${Date.now()}`, sessionId, role:'user', content: trimmed, createdAt: new Date().toISOString(), kind:'chat' };
     setEntries(e=>[...e, { kind:'message', id:userMsg.id, at:userMsg.createdAt, message:userMsg }]);
     setRunning(true);
-    setAgentState({ phase:'planning', label:'Planning', iteration:0, maxIterations:40 });
+    const maxIterations = effort === 'low' ? 15 : effort === 'high' ? 80 : 40;
+    setAgentState({ phase:'planning', label:'Planning', iteration:0, maxIterations });
     streamingBufferRef.current = '';
     flushStreaming('');
     setLiveOutput({});
@@ -374,7 +375,7 @@ export function useAgent(sessionId: string | null) {
     const isMulti = trimmed.startsWith('/multi ');
     const actualText = isMulti ? trimmed.replace(/^\/multi\s+/, '') : trimmed;
     try {
-      await window.cluster.agent.send({ sessionId, text: actualText, mode: isMulti ? 'multi' : 'single' });
+      await window.cluster.agent.send({ sessionId, text: actualText, mode: isMulti ? 'multi' : 'single', effort });
     } catch (e:any) {
       pushActivity(`send failed: ${e.message}`);
       setRunning(false);

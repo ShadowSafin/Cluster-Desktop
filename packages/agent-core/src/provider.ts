@@ -137,6 +137,12 @@ export class ModelProvider {
     }
     if (request.maxTokens) payload['max_tokens'] = request.maxTokens;
     if (request.jsonMode) payload['response_format'] = { type: 'json_object' };
+    if (this.config.effort) {
+      const lower = (this.config.model || '').toLowerCase();
+      if (lower.startsWith('o1') || lower.startsWith('o3') || lower.includes('reason') || lower.includes('deepseek') || lower.includes('agnes')) {
+        payload['reasoning_effort'] = this.config.effort === 'balanced' ? 'medium' : this.config.effort;
+      }
+    }
 
     const response = await this.post(payload, request.signal);
     return this.readStream(response, request.onDelta);
