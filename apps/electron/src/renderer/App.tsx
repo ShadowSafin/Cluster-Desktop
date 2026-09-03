@@ -589,9 +589,10 @@ export default function App() {
               plan={agent.plan}
               workspaceName={workspaceInfo?.name || 'cluster'}
               projectRoot={projectRoot}
-              gitBranch={workspaceInfo?.git?.branch || 'main'}
-              model={config?.model || activeSession?.model || 'Claude 3.5 Sonnet'}
-              provider={config?.provider || 'Anthropic'}
+              gitBranch={workspaceInfo?.git?.branch || null}
+              model={config?.model || activeSession?.model || 'agnes-2.5-flash'}
+              provider={config?.provider}
+              baseUrl={config?.baseUrl}
               edits={agent.edits}
               onSubmit={onWorkspaceSubmit}
               onCancel={agent.cancel}

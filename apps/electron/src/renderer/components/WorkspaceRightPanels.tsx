@@ -15,6 +15,7 @@ import {
 import type { Plan } from '@cluster/shared';
 import { getModelDisplayName } from './ModelSelectorModal';
 import { EffortLevel, formatEffortDisplayName } from './EffortSelectorModal';
+import { detectProvider } from '../services/providerDetect';
 
 export interface WorkspaceRightPanelsProps {
   plan?: Plan | null;
@@ -26,6 +27,7 @@ export interface WorkspaceRightPanelsProps {
   gitBranch?: string | null;
   model?: string;
   provider?: string;
+  baseUrl?: string;
   effort?: EffortLevel;
   onOpenDiffs?: () => void;
   onOpenTasks?: () => void;
@@ -41,9 +43,10 @@ export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
   activity = [],
   workspaceName = 'Workspace',
   projectRoot,
-  gitBranch,
-  model = 'Claude 3.5 Sonnet',
-  provider = 'Anthropic',
+  gitBranch = null,
+  model = 'agnes-2.5-flash',
+  provider,
+  baseUrl,
   effort = 'balanced',
   onOpenDiffs,
   onOpenTasks,
@@ -95,11 +98,14 @@ export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
 
   // Clean formatted path
   const displayPath = React.useMemo(() => {
-    if (!projectRoot) return '~/projects/cluster';
-    const normalized = projectRoot.replace(/\\/g, '/');
+    if (!projectRoot) return 'projects/cluster';
+    const normalized = projectRoot.replace(/\\/g, '/').replace(/\/+$/, '');
+    if (/^[a-zA-Z]:/i.test(normalized)) {
+      return normalized;
+    }
     const parts = normalized.split('/').filter(Boolean);
-    if (parts.length <= 2) return `~/${parts.join('/')}`;
-    return `~/${parts.slice(-2).join('/')}`;
+    if (parts.length <= 2) return normalized.startsWith('/') ? normalized : `~/${parts.join('/')}`;
+    return `.../${parts.slice(-2).join('/')}`;
   }, [projectRoot]);
 
   // Real recent activity items (NO hardcoded mock activities!)
@@ -254,15 +260,23 @@ export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">Branch</span>
-              <span className="font-mono text-zinc-300 truncate max-w-[150px] flex items-center gap-1">
-                <GitBranch className="w-3 h-3 text-zinc-400" />
-                {gitBranch || 'main'}
-              </span>
+              <span className="text-zinc-400">Git Branch</span>
+              {gitBranch ? (
+                <span className="font-mono text-zinc-300 truncate max-w-[150px] flex items-center gap-1" title={`Branch: ${gitBranch}`}>
+                  <GitBranch className="w-3 h-3 text-emerald-400" />
+                  {gitBranch}
+                </span>
+              ) : (
+                <span className="text-zinc-500 font-mono text-[10px]" title="No Git repository found in this workspace">
+                  Not a git repo
+                </span>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-400">Provider</span>
-              <span className="text-zinc-300">{provider || 'Anthropic'}</span>
+              <span className="text-zinc-300 font-medium">
+                {detectProvider(baseUrl, model, provider)}
+              </span>
             </div>
             <div
               onClick={onOpenModelSelector}

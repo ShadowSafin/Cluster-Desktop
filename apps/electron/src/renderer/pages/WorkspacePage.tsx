@@ -48,6 +48,7 @@ interface WorkspacePageProps {
   gitBranch?: string | null;
   model?: string;
   provider?: string;
+  baseUrl?: string;
   edits?: any[];
   effort?: EffortLevel;
   onSubmit: (text: string) => void;
@@ -214,8 +215,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   workspaceName = 'Workspace',
   projectRoot,
   gitBranch,
-  model = 'Claude 3.5 Sonnet',
-  provider = 'Anthropic',
+  model = 'agnes-2.5-flash',
+  provider,
+  baseUrl,
   edits = [],
   onSubmit,
   onCancel,
@@ -468,6 +470,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         gitBranch={gitBranch}
         model={model}
         provider={provider}
+        baseUrl={baseUrl}
         effort={effort}
         onOpenDiffs={onOpenDiffs}
         onOpenTasks={onOpenTasks}
