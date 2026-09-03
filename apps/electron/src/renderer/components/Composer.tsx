@@ -1,5 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Square, ArrowUp, Sparkles, Terminal } from 'lucide-react';
+import {
+  Square,
+  ArrowUp,
+  Sparkles,
+  Terminal,
+  Paperclip,
+  Code2,
+  Mic,
+  Maximize2,
+  Sliders,
+  Bot,
+  ChevronDown,
+} from 'lucide-react';
 
 interface Props {
   onSubmit: (text: string) => void;
@@ -7,6 +19,7 @@ interface Props {
   running?: boolean;
   onCancel?: () => void;
   placeholder?: string;
+  model?: string;
 }
 
 interface CommandItem {
@@ -31,8 +44,10 @@ export const Composer: React.FC<Props> = ({
   running,
   onCancel,
   placeholder,
+  model = 'Claude 3.5 Sonnet',
 }) => {
   const [value, setValue] = useState('');
+  const [mode, setMode] = useState<'ask' | 'command'>('ask');
   const [skills, setSkills] = useState<CommandItem[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -44,18 +59,21 @@ export const Composer: React.FC<Props> = ({
   // Fetch installed skills for autocomplete
   useEffect(() => {
     if (typeof window !== 'undefined' && window.cluster?.skills?.list) {
-      window.cluster.skills.list().then((list: any[]) => {
-        const skillItems: CommandItem[] = list
-          .filter((s: any) => s.enabled)
-          .map((s: any) => ({
-            command: `/${s.manifest.invocationName}`,
-            name: s.manifest.displayName,
-            description: s.manifest.description,
-            category: s.manifest.category,
-            isSkill: true,
-          }));
-        setSkills(skillItems);
-      }).catch(() => {});
+      window.cluster.skills
+        .list()
+        .then((list: any[]) => {
+          const skillItems: CommandItem[] = list
+            .filter((s: any) => s.enabled)
+            .map((s: any) => ({
+              command: `/${s.manifest.invocationName}`,
+              name: s.manifest.displayName,
+              description: s.manifest.description,
+              category: s.manifest.category,
+              isSkill: true,
+            }));
+          setSkills(skillItems);
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -98,6 +116,9 @@ export const Composer: React.FC<Props> = ({
       if (!t || disabled || running) return;
       onSubmit(t);
       setValue('');
+      if (ref.current) {
+        ref.current.style.height = '48px';
+      }
     }
   };
 
@@ -107,11 +128,11 @@ export const Composer: React.FC<Props> = ({
   };
 
   return (
-    <div className="relative border border-[#232326] rounded-xl bg-[#111113] focus-within:border-[#2a2a2e] focus-within:bg-[#18181b] transition-colors">
+    <div className="relative rounded-2xl border border-[#1E2536] bg-[#121722] p-3 shadow-xl transition-all select-none">
       {/* Slash command autocomplete popup */}
       {isSlashActive && matchingCommands.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 w-full max-w-md bg-[#16161c] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden z-50">
-          <div className="px-3 py-1.5 border-b border-zinc-800 text-[10px] font-medium text-zinc-400 uppercase tracking-wider flex items-center justify-between">
+        <div className="absolute bottom-full left-0 mb-2 w-full max-w-md bg-[#161D2B] border border-[#222C40] rounded-xl shadow-2xl overflow-hidden z-50">
+          <div className="px-3 py-1.5 border-b border-[#222C40] text-[10px] font-medium text-zinc-400 uppercase tracking-wider flex items-center justify-between">
             <span>Available Commands & Skills</span>
             <span className="font-mono text-zinc-500">Tab to complete</span>
           </div>
@@ -121,27 +142,27 @@ export const Composer: React.FC<Props> = ({
                 key={cmd.command}
                 onMouseDown={() => handleSelectCommand(cmd.command)}
                 className={`px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-colors ${
-                  idx === selectedIdx ? 'bg-cyan-600/20 text-white' : 'text-zinc-300 hover:bg-zinc-800/60'
+                  idx === selectedIdx ? 'bg-[#3B82F6]/20 text-white' : 'text-zinc-300 hover:bg-[#1C2538]'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-6 h-6 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
+                  <div className="w-6 h-6 rounded bg-[#1B2232] border border-[#263147] flex items-center justify-center shrink-0">
                     {cmd.isSkill ? (
-                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                      <Sparkles className="w-3.5 h-3.5 text-[#3B82F6]" />
                     ) : (
                       <Terminal className="w-3.5 h-3.5 text-zinc-400" />
                     )}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-cyan-300">{cmd.command}</span>
-                      <span className="text-xs text-zinc-300 truncate">{cmd.name}</span>
+                      <span className="font-mono text-xs font-bold text-[#3B82F6]">{cmd.command}</span>
+                      <span className="text-xs text-zinc-200 truncate">{cmd.name}</span>
                     </div>
                     <div className="text-[11px] text-zinc-400 truncate">{cmd.description}</div>
                   </div>
                 </div>
                 {cmd.category && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 shrink-0 ml-2">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1B2232] text-zinc-400 shrink-0 ml-2">
                     {cmd.category}
                   </span>
                 )}
@@ -151,8 +172,44 @@ export const Composer: React.FC<Props> = ({
         </div>
       )}
 
-      <div className="flex items-start gap-2 px-3 py-2.5">
-        <span className="text-amber-400 mt-1 text-sm">›</span>
+      {/* Top row: Ask / Command segmented tabs */}
+      <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.04]">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setMode('ask')}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+              mode === 'ask'
+                ? 'bg-[#1C2436] text-white shadow-sm border border-[#27324B]'
+                : 'text-[#94A3B8] hover:text-white'
+            }`}
+          >
+            Ask
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('command')}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+              mode === 'command'
+                ? 'bg-[#1C2436] text-white shadow-sm border border-[#27324B]'
+                : 'text-[#94A3B8] hover:text-white'
+            }`}
+          >
+            Command
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="p-1 text-[#64748B] hover:text-white transition-colors rounded-md hover:bg-[#1A2234]"
+          title="Fullscreen Composer"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Middle Textarea */}
+      <div className="px-1 py-1">
         <textarea
           ref={ref}
           value={value}
@@ -161,47 +218,96 @@ export const Composer: React.FC<Props> = ({
             setSelectedIdx(0);
           }}
           onKeyDown={handleKeyDown}
-          rows={1}
+          rows={2}
           disabled={disabled}
-          placeholder={
-            placeholder ??
-            (running
-              ? 'Agent is actively executing tasks…'
-              : 'Describe a task or command… (/skills, /refactor, /testgen, ⌘K)')
-          }
-          className="flex-1 bg-transparent outline-none resize-none text-sm text-white placeholder:text-[#71717a] max-h-[120px] min-h-[20px]"
-          style={{ height: '20px' }}
+          placeholder={placeholder ?? 'Describe a task or ask anything...'}
+          className="w-full bg-transparent outline-none resize-none text-sm text-[#F1F5F9] placeholder:text-[#64748B] font-sans max-h-[160px] min-h-[48px] leading-relaxed"
           onInput={(e) => {
             const el = e.currentTarget;
             el.style.height = 'auto';
-            el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+            el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
           }}
         />
       </div>
-      <div className="flex items-center justify-between px-3 pb-2">
-        <div className="text-[11px] text-[#71717a]">Enter send · Shift+Enter newline · / skills</div>
+
+      {/* Keyboard hints row */}
+      <div className="px-1 pb-2 text-[11px] font-mono text-[#64748B] flex items-center gap-3 select-none">
+        <span>Enter to send</span>
+        <span>Shift+Enter for new line</span>
+        <span>/ to access skills</span>
+      </div>
+
+      {/* Bottom controls row */}
+      <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
+        {/* Model & Mode Pickers */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161D2B] hover:bg-[#1D2638] border border-[#222B3D] text-[11px] font-mono text-zinc-300 transition-colors"
+          >
+            <Bot className="w-3.5 h-3.5 text-[#3B82F6]" />
+            <span className="truncate max-w-[140px]">{model}</span>
+            <ChevronDown className="w-3 h-3 text-[#64748B]" />
+          </button>
+
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161D2B] hover:bg-[#1D2638] border border-[#222B3D] text-[11px] font-mono text-zinc-300 transition-colors"
+          >
+            <Sliders className="w-3.5 h-3.5 text-[#64748B]" />
+            <span>Balanced</span>
+            <ChevronDown className="w-3 h-3 text-[#64748B]" />
+          </button>
+        </div>
+
+        {/* Action icons & Send button */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A2234] transition-colors"
+            title="Attach file"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A2234] transition-colors"
+            title="Insert code snippet"
+          >
+            <Code2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A2234] transition-colors"
+            title="Voice input"
+          >
+            <Mic className="w-3.5 h-3.5" />
+          </button>
+
           {running && onCancel ? (
             <button
+              type="button"
               onClick={onCancel}
-              className="text-xs bg-rose-500/20 border border-rose-500/30 text-rose-300 px-3 py-1 rounded-md font-semibold hover:bg-rose-500/30 flex items-center gap-1.5 transition-colors"
+              className="ml-1 w-7 h-7 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 flex items-center justify-center transition-colors shadow-sm"
+              title="Stop Agent"
             >
               <Square className="w-3 h-3 fill-current" />
-              <span>Stop Agent</span>
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => {
                 const t = value.trim();
                 if (!t || disabled || running) return;
                 onSubmit(t);
                 setValue('');
+                if (ref.current) ref.current.style.height = '48px';
               }}
               disabled={disabled || running || !value.trim()}
-              className="text-xs bg-white text-black px-3 py-1 rounded-md font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 flex items-center gap-1 transition-colors"
+              className="ml-1 w-7 h-7 rounded-xl bg-[#252D3F] hover:bg-[#323D54] disabled:opacity-40 disabled:cursor-not-allowed text-white border border-white/10 flex items-center justify-center transition-colors shadow-sm"
+              title="Send message (Enter)"
             >
-              <span>Send</span>
-              <ArrowUp className="w-3 h-3" />
+              <ArrowUp className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

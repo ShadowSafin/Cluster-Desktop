@@ -1,6 +1,6 @@
 import React from 'react';
+import { Search, Plus, Settings, Clock, ChevronRight } from 'lucide-react';
 import type { PageId } from './Sidebar';
-import { ClusterLogo } from './ClusterLogo';
 
 interface TopBarProps {
   currentPage: PageId;
@@ -10,17 +10,18 @@ interface TopBarProps {
   sessionTitle?: string;
   running?: boolean;
   onCommandPalette: () => void;
-  onNewCheckpoint: () => void;
+  onNewCheckpoint?: () => void;
   onNewSession: () => void;
   onOpenWorkspaceSwitcher?: () => void;
   onOpenFolderDialog?: () => void;
+  onNavigate?: (page: PageId) => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
   currentPage,
   projectRoot,
-  workspaceName = 'cluster',
-  model = 'gpt-4o-mini',
+  workspaceName = 'Project Atlas',
+  model = 'Claude 3.5 Sonnet',
   sessionTitle,
   running,
   onCommandPalette,
@@ -28,106 +29,77 @@ export const TopBar: React.FC<TopBarProps> = ({
   onNewSession,
   onOpenWorkspaceSwitcher,
   onOpenFolderDialog,
+  onNavigate,
 }) => {
-  const pageTitles: Record<PageId, string> = {
-    sessions: 'Sessions',
-    workspace: 'Workspace',
-    tasks: 'Tasks & Plan',
-    diff: 'Diff & Review',
-    logs: 'Logs',
-    background: 'Background Jobs',
-    checkpoints: 'Checkpoints',
-    memory: 'Memory',
-    skills: 'Skills & Marketplace',
-    provider: 'Provider Setup',
-    settings: 'Settings',
-  };
-
-  const displayPath = projectRoot ? projectRoot.replace(/\\/g, '/') : '~/projects/cluster';
-  const isWindows = typeof navigator !== 'undefined' && /win/i.test(navigator.userAgent || (navigator as any).platform || '');
+  const isWindows =
+    typeof navigator !== 'undefined' &&
+    /win/i.test(navigator.userAgent || (navigator as any).platform || '');
 
   return (
-    <header className={`h-10 shrink-0 flex items-center justify-between pl-3 ${isWindows ? 'pr-[140px]' : 'pr-3'} bg-[#0a0a0d] border-b border-[#232326] drag-region select-none text-xs overflow-hidden`}>
-      {/* Breadcrumb & Status */}
-      <div className="flex items-center gap-2 no-drag min-w-0 flex-1 overflow-hidden">
-        <ClusterLogo size={16} rounded={true} />
-        <span className="font-bold text-white text-xs tracking-wider shrink-0">CLUSTER</span>
-        <span className="text-[#52525b] shrink-0">/</span>
-
-        {/* Interactive Workspace Button */}
+    <header
+      className={`h-12 shrink-0 flex items-center justify-between pl-4 ${
+        isWindows ? 'pr-[140px]' : 'pr-4'
+      } bg-[#0D1117] border-b border-[#1E2536] drag-region select-none text-xs overflow-hidden`}
+    >
+      {/* Breadcrumb: Workspace / Project Atlas */}
+      <div className="flex items-center gap-2 no-drag min-w-0 flex-1">
+        <button
+          onClick={() => onNavigate?.('workspace')}
+          className="text-[#94A3B8] hover:text-white transition-colors cursor-pointer"
+        >
+          Workspace
+        </button>
+        <span className="text-[#475569]">/</span>
         <button
           onClick={onOpenWorkspaceSwitcher}
-          title={`Current Workspace: ${displayPath}\nClick to switch workspace (Ctrl+O)`}
-          className="flex items-center gap-1.5 px-2 py-1 -my-1 rounded-lg bg-[#141418] hover:bg-[#1f1f23] border border-[#27272a] hover:border-cyan-500/40 text-white transition-all max-w-[160px] sm:max-w-xs group cursor-pointer shrink-0"
+          title={`Active Workspace: ${workspaceName}\nClick to switch (Ctrl+O)`}
+          className="font-semibold text-white hover:text-[#3B82F6] transition-colors truncate max-w-[200px] cursor-pointer"
         >
-          <span className="text-xs">📁</span>
-          <span className="font-semibold text-xs text-cyan-300 truncate">{workspaceName}</span>
-          <span className="text-[10px] text-[#71717a] group-hover:text-white transition-colors">▾</span>
+          {workspaceName}
         </button>
-
-        <span className="text-[#52525b] shrink-0">/</span>
-        <span className="font-medium text-[#a1a1aa] capitalize shrink-0">{pageTitles[currentPage]}</span>
-        {sessionTitle && currentPage === 'workspace' && (
-          <>
-            <span className="text-[#52525b] shrink-0">·</span>
-            <span className="text-[#71717a] font-mono truncate max-w-[120px] sm:max-w-xs min-w-0">
-              {sessionTitle}
-            </span>
-          </>
-        )}
       </div>
 
-      {/* Middle Search / Palette Trigger */}
-      <div className="hidden lg:flex items-center no-drag shrink-0 mx-2">
+      {/* Center Search / Command Palette Pill */}
+      <div className="hidden md:flex items-center justify-center no-drag flex-1 max-w-md mx-4">
         <button
           onClick={onCommandPalette}
-          className="flex items-center gap-2 bg-[#141418] border border-[#232326] hover:border-[#3f3f46] text-[#71717a] hover:text-white px-3 py-1 rounded-xl transition-all shadow-sm"
+          className="w-full flex items-center justify-between px-3.5 py-1.5 rounded-xl bg-[#121722] hover:bg-[#161D2B] border border-[#1E2536] hover:border-[#27324B] text-[#94A3B8] hover:text-white transition-all shadow-sm group cursor-pointer"
         >
-          <span className="text-xs">🔍</span>
-          <span className="text-[11px] font-mono">Quick Actions & Commands...</span>
-          <span className="text-[10px] font-mono bg-[#1f1f24] border border-[#2c2c33] px-1.5 py-0.5 rounded text-[#a1a1aa]">
-            Ctrl+K
+          <div className="flex items-center gap-2.5">
+            <Search className="w-3.5 h-3.5 text-[#64748B] group-hover:text-white transition-colors" />
+            <span className="text-xs text-[#94A3B8] font-sans">Quick actions &amp; commands...</span>
+          </div>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1A2234] border border-[#242E46] text-[#94A3B8]">
+            ⌘K
           </span>
         </button>
       </div>
 
-      {/* Right Actions & Model Indicator */}
+      {/* Right Controls: + New Session, Settings, History */}
       <div className="flex items-center gap-2 no-drag shrink-0">
         <button
-          onClick={onNewCheckpoint}
-          title="Create Snapshot Checkpoint (Ctrl+G)"
-          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#141418] border border-[#232326] text-[#a1a1aa] hover:text-white transition-colors"
-        >
-          <span className="text-[10px]">⎌</span>
-          <span className="text-[11px] font-mono">Checkpoint</span>
-        </button>
-
-        <button
-          onClick={onOpenFolderDialog}
-          title="Open Project Folder (Ctrl+O)"
-          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#141418] border border-[#232326] hover:border-[#38383e] text-[#a1a1aa] hover:text-white transition-colors text-[11px]"
-        >
-          <span>📂</span>
-          <span>Open Folder</span>
-        </button>
-
-        <button
           onClick={onNewSession}
-          title="Create New Session"
-          className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#141418] border border-[#232326] text-[#a1a1aa] hover:text-white transition-colors text-[11px]"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161D2B] hover:bg-[#1F273A] border border-[#222B3D] text-white text-xs font-medium transition-all shadow-sm cursor-pointer"
         >
-          + Session
+          <Plus className="w-3.5 h-3.5" />
+          <span>New Session</span>
         </button>
 
-        {model && (
-          <span className="font-mono text-[11px] bg-[#141418] border border-[#232326] px-2.5 py-1 rounded-lg text-[#a1a1aa]">
-            {model}
-          </span>
-        )}
+        <button
+          onClick={() => onNavigate?.('settings')}
+          className="w-8 h-8 rounded-xl bg-[#121722] hover:bg-[#161D2B] border border-[#1E2536] text-[#94A3B8] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+          title="Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
 
-        {running && (
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-1" title="Agent is working" />
-        )}
+        <button
+          onClick={() => onNavigate?.('checkpoints')}
+          className="w-8 h-8 rounded-xl bg-[#121722] hover:bg-[#161D2B] border border-[#1E2536] text-[#94A3B8] hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+          title="History & Checkpoints"
+        >
+          <Clock className="w-4 h-4" />
+        </button>
       </div>
     </header>
   );

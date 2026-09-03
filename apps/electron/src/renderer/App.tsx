@@ -472,12 +472,12 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#07070a] text-[#f4f4f5] overflow-hidden select-none font-sans">
+    <div className="h-screen w-screen flex flex-col bg-[#0B0E14] text-[#f4f4f5] overflow-hidden select-none font-sans">
       {/* Top Application Bar */}
       <TopBar
         currentPage={currentPage}
         projectRoot={projectRoot}
-        workspaceName={workspaceInfo?.name || 'cluster'}
+        workspaceName={workspaceInfo?.name || 'Project Atlas'}
         model={config?.model || activeSession?.model}
         sessionTitle={activeSession?.title}
         running={agent.running}
@@ -486,6 +486,7 @@ export default function App() {
         onNewSession={handleNewSession}
         onOpenWorkspaceSwitcher={() => setShowWorkspaceSwitcher(true)}
         onOpenFolderDialog={handleOpenFolderDialog}
+        onNavigate={setCurrentPage}
       />
 
       {/* Main Split Layout: Sidebar + Active Page */}
@@ -497,7 +498,7 @@ export default function App() {
           activeSessionId={activeSessionId}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
-          workspaceName={workspaceInfo?.name || 'cluster'}
+          workspaceName={workspaceInfo?.name || 'Project Atlas'}
           taskGraph={agent.taskGraph}
           running={agent.running}
           diffCount={agent.edits.length}
@@ -507,7 +508,7 @@ export default function App() {
         />
 
         {/* Dynamic Page Rendering */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#0a0a0d] overflow-hidden">
+        <main className="flex-1 flex flex-col min-w-0 bg-[#0B0E14] overflow-hidden">
           {currentPage === 'sessions' && (
             <SessionsPage
               sessions={sessions}
@@ -539,11 +540,18 @@ export default function App() {
               swarmSummary={agent.swarmSummary}
               verificationReport={agent.verificationReport}
               plan={agent.plan}
+              workspaceName={workspaceInfo?.name || 'Project Atlas'}
+              projectRoot={projectRoot}
+              gitBranch={workspaceInfo?.git?.branch || 'feature/dark-mode'}
+              model={config?.model || activeSession?.model || 'Claude 3.5 Sonnet'}
+              provider={config?.provider || 'Anthropic'}
+              edits={agent.edits}
               onSubmit={onWorkspaceSubmit}
               onCancel={agent.cancel}
               onConfirm={agent.confirm}
               onOpenTasks={() => setCurrentPage('tasks')}
               onOpenDiffs={() => setCurrentPage('diff')}
+              onOpenWorkspaceSwitcher={() => setShowWorkspaceSwitcher(true)}
               recalledMemories={agent.recalledMemories}
               fileProgress={agent.fileProgress}
               activeSkill={agent.activeSkill}
@@ -624,43 +632,45 @@ export default function App() {
         </main>
       </div>
 
-      {/* Global Bottom Status Bar */}
-      <footer className="h-6 flex items-center justify-between px-3 bg-[#08080a] border-t border-[#1f1f23] text-[11px] text-[#71717a] shrink-0 font-mono select-none">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            {workspaceInfo?.git?.branch ? (
+      {/* Global Bottom Status Bar (for non-workspace pages) */}
+      {currentPage !== 'workspace' && (
+        <footer className="h-6 flex items-center justify-between px-3 bg-[#08080a] border-t border-[#1f1f23] text-[11px] text-[#71717a] shrink-0 font-mono select-none">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5">
+              {workspaceInfo?.git?.branch ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span className="text-white">{workspaceInfo.git.branch}</span>
+                </>
+              ) : (
+                <span className="text-[#52525b]">no git</span>
+              )}
+            </span>
+            <span>·</span>
+            <span>{activeSession ? activeSession.title.slice(0, 24) : 'No Session'}</span>
+            <span>·</span>
+            <span className="text-cyan-400 font-mono">{config?.model || activeSession?.model || 'No model'}</span>
+            {agent.taskGraph && (
               <>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span className="text-white">{workspaceInfo.git.branch}</span>
+                <span>·</span>
+                <span className="text-emerald-400">
+                  {Object.values(agent.taskGraph.tasks || {}).filter((t: any) => t.status === 'done').length} done
+                </span>
               </>
-            ) : (
-              <span className="text-[#52525b]">no git</span>
             )}
-          </span>
-          <span>·</span>
-          <span>{activeSession ? activeSession.title.slice(0, 24) : 'No Session'}</span>
-          <span>·</span>
-          <span className="text-cyan-400 font-mono">{config?.model || activeSession?.model || 'No model'}</span>
-          {agent.taskGraph && (
-            <>
-              <span>·</span>
-              <span className="text-emerald-400">
-                {Object.values(agent.taskGraph.tasks || {}).filter((t: any) => t.status === 'done').length} done
-              </span>
-            </>
-          )}
-          {agent.running && (
-            <span className="text-amber-400 animate-pulse">● {agent.agentState.phase}</span>
-          )}
-        </div>
+            {agent.running && (
+              <span className="text-amber-400 animate-pulse">● {agent.agentState.phase}</span>
+            )}
+          </div>
 
-        <div className="flex items-center gap-4">
-          <span className="hidden sm:inline">UTF-8</span>
-          <span className="hidden sm:inline">LF</span>
-          <span>{agent.edits.length} edits</span>
-          <span className="text-[#a1a1aa]">{agent.running ? 'running' : 'ready'}</span>
-        </div>
-      </footer>
+          <div className="flex items-center gap-4">
+            <span className="hidden sm:inline">UTF-8</span>
+            <span className="hidden sm:inline">LF</span>
+            <span>{agent.edits.length} edits</span>
+            <span className="text-[#a1a1aa]">{agent.running ? 'running' : 'ready'}</span>
+          </div>
+        </footer>
+      )}
 
       {/* Global Command Palette Modal */}
       <CommandPalette
