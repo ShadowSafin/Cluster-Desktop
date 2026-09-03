@@ -21,8 +21,7 @@ async function resolveRendererEntry(): Promise<string> {
 }
 
 function createWindow() {
-  const iconFileName = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
-  const iconPath = path.resolve(__dirname, `../../resources/${iconFileName}`);
+  const iconPath = path.resolve(__dirname, '../../resources/icon.png');
 
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -297,7 +296,97 @@ function registerIpc() {
 
     // Real agent execution — wired to SessionStore, ModelProvider, ToolRegistry, Coordinator, TaskEngine
   const activeControllers = new Map<string, AbortController>();
-  const jobRegistry = new Map<string, { id: string; command: string; cwd: string; status: 'running'|'done'|'failed'|'stopped'; pid?: number; port?: number; output: string; startedAt: string; durationMs?: number; controller?: AbortController }>();
+  const jobRegistry = new Map<string, { id: string; command: string; cwd: string; status: 'running'|'done'|'failed'|'stopped'; pid?: number; port?: number; output: string; startedAt: string; durationMs?: number; controller?: { abort: () => void } }>();
+
+  const DEV_PROC_NAMES = new Set([
+    'node.exe', 'node',
+    'python.exe', 'python', 'python3.exe', 'python3',
+    'bun.exe', 'bun',
+    'deno.exe', 'deno',
+    'cargo.exe', 'cargo',
+    'go.exe', 'go',
+    'ruby.exe', 'ruby'
+  ]);
+
+  async function discoverActiveDevServers(existingPids = new Set<number>()): Promise<any[]> {
+    if (process.platform !== 'win32') return [];
+    try {
+      const { exec } = await import('node:child_process');
+      const util = await import('node:util');
+      const execPromise = util.promisify(exec);
+
+      const [netstatRes, tasklistRes] = await Promise.all([
+        execPromise('netstat -ano').catch(() => ({ stdout: '' })),
+        execPromise('tasklist /FO CSV /NH').catch(() => ({ stdout: '' })),
+      ]);
+
+      const pidMap = new Map<number, string>();
+      for (const line of (tasklistRes.stdout || '').split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const parts = trimmed.split(',').map(s => s.replace(/^"|"$/g, '').trim());
+        if (parts.length >= 2) {
+          const name = parts[0].toLowerCase();
+          const pid = parseInt(parts[1], 10);
+          if (pid) pidMap.set(pid, name);
+        }
+      }
+
+      const seen = new Set<string>();
+      const discovered: any[] = [];
+
+      for (const line of (netstatRes.stdout || '').split('\n')) {
+        if (!line.includes('LISTENING')) continue;
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 4) {
+          const local = parts[1];
+          const pidStr = parts[parts.length - 1];
+          const pid = parseInt(pidStr, 10);
+          const portMatch = local.match(/:(\d+)$/);
+          if (portMatch && pid && pid > 4) {
+            const port = parseInt(portMatch[1], 10);
+            const isDevPort = (port >= 3000 && port <= 9999) || [80, 443, 8000, 8080].includes(port);
+            const key = `${port}-${pid}`;
+            if (isDevPort && !seen.has(key) && !existingPids.has(pid)) {
+              seen.add(key);
+              const procName = pidMap.get(pid);
+              if (procName && DEV_PROC_NAMES.has(procName)) {
+                let label = 'Dev Server';
+                if (port === 5173 || port === 5174) label = 'Vite Dev Server';
+                else if (port === 3000 || port === 3001) label = 'Web Dev Server';
+                else if (port === 8000 || port === 8080) label = 'API Server';
+                else if (port === 4200) label = 'Angular Server';
+
+                const id = `sys-${port}-${pid}`;
+                const devJob = {
+                  id,
+                  command: `${procName} (${label} on port ${port})`,
+                  cwd: process.cwd(),
+                  status: 'running' as const,
+                  pid,
+                  port,
+                  output: `Active dev server listening on http://localhost:${port}\nProcess: ${procName} (PID: ${pid})\nStatus: Running / Listening`,
+                  startedAt: new Date().toISOString(),
+                  controller: {
+                    abort: () => {
+                      try {
+                        exec(`taskkill /pid ${pid} /T /F`);
+                      } catch {}
+                    }
+                  }
+                };
+                jobRegistry.set(id, devJob);
+                discovered.push(devJob);
+              }
+            }
+          }
+        }
+      }
+      return discovered;
+    } catch {
+      return [];
+    }
+  }
 
   ipcMain.handle('agent:send', async (event, payload: { sessionId: string; text: string; mode?: 'single'|'multi' }) => {
     const store = await getStore();
@@ -580,7 +669,36 @@ function registerIpc() {
         }
         if (data.name==='run_command') {
           const d=(data.result?.data||{}) as any;
-          const job={ id:data.id, command: d.command||'', cwd: d.cwd||projectRoot, status: data.status==='success'?'done':'failed', pid: undefined, exitCode: d.exitCode, output: d.output||'', startedAt: data.startedAt };
+          const isBg = !!(d.isBackground || (typeof d.command === 'string' && /(?:npm\s+run\s+dev|vite\b|next\s+dev|nodemon|webpack\s+serve|python\s+-m\s+http)/i.test(d.command) && data.status === 'success'));
+          const portMatch = (d.output || '').match(/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|port|Port)[:\s]+(\d{2,5})/i);
+          const port = d.port || (portMatch ? parseInt(portMatch[1], 10) : undefined);
+          const status = isBg ? 'running' as const : (data.status==='success'?'done' as const:'failed' as const);
+          const job = {
+            id: data.id,
+            command: d.command||'',
+            cwd: d.cwd||projectRoot,
+            status,
+            pid: d.pid,
+            port,
+            exitCode: isBg ? undefined : d.exitCode,
+            output: d.output||'',
+            startedAt: data.startedAt || new Date().toISOString(),
+          };
+          jobRegistry.set(data.id, {
+            ...job,
+            durationMs: d.durationMs,
+            controller: d.pid ? {
+              abort: () => {
+                try {
+                  if (process.platform === 'win32') {
+                    import('node:child_process').then(({ exec }) => exec(`taskkill /pid ${d.pid} /T /F`));
+                  } else {
+                    process.kill(d.pid, 'SIGKILL');
+                  }
+                } catch {}
+              }
+            } : undefined,
+          });
           emit('agent:job', { sessionId: payload.sessionId, job });
           // also store as commandRun
           store.appendCommandRun(payload.sessionId, { id:createId('cmd'), sessionId: payload.sessionId, toolCallId: data.id, command: d.command||'', cwd: d.cwd||projectRoot, exitCode: d.exitCode??null, stdout: d.output||'', stderr:'', durationMs: d.durationMs||0, timedOut: !!d.timedOut, cancelled: !!d.cancelled, startedAt: data.startedAt||new Date().toISOString(), finishedAt: data.finishedAt||new Date().toISOString() } as any);
@@ -716,6 +834,12 @@ function registerIpc() {
   });
 
   ipcMain.handle('jobs:list', async (_e, sessionId?: string) => {
+    const existingPids = new Set<number>();
+    for (const j of jobRegistry.values()) {
+      if (j.pid) existingPids.add(j.pid);
+    }
+    await discoverActiveDevServers(existingPids);
+
     return [...jobRegistry.values()].map(j => ({
       id: j.id,
       command: j.command,
@@ -799,6 +923,16 @@ function registerIpc() {
     if (!job) return false;
     if (job.controller) {
       job.controller.abort();
+    }
+    if (job.pid) {
+      try {
+        if (process.platform === 'win32') {
+          const { exec } = await import('node:child_process');
+          exec(`taskkill /pid ${job.pid} /T /F`);
+        } else {
+          process.kill(job.pid, 'SIGKILL');
+        }
+      } catch {}
     }
     job.status = 'stopped';
     return true;

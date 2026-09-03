@@ -256,6 +256,8 @@ export const runCommandTool = defineTool<Input>({
 
     // If dev server verified healthy and ready:
     if (devServerVerifiedHealthy || (isDevServerCommand && devServerReadyDetected)) {
+      const portMatch = collected.match(/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|port|Port)[:\s]+(\d{2,5})/i);
+      const port = portMatch ? parseInt(portMatch[1], 10) : undefined;
       return okResult(
         `Dev server verified running with no errors:\n\n${output}\n\n[Dev server is active and listening in background]`,
         {
@@ -265,6 +267,10 @@ export const runCommandTool = defineTool<Input>({
             durationMs,
             exitCode: 0,
             output,
+            isBackground: true,
+            status: 'running',
+            pid: subprocess.pid,
+            port,
           },
         },
       );
