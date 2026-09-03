@@ -636,6 +636,28 @@ function registerIpc() {
       return { ok:true, demo:true };
     }
 
+function shouldSpawnSubAgents(text: string, mode?: 'single' | 'multi'): boolean {
+  if (mode === 'multi') return true;
+  if (mode === 'single') return false;
+
+  const t = text.trim().toLowerCase();
+  if (t.length < 20 && !/create|build|make|add|fix|test/.test(t)) {
+    return false;
+  }
+  if (/^(hi|hello|hey|help|what is|how to|who are you|explain|what time)/i.test(t) && t.split(/\s+/).length <= 8) {
+    return false;
+  }
+
+  const buildIntents = /create|build|make|implement|add|develop|scaffold|architect|redesign|refactor|rewrite|audit|analyze|investigate|migrate|deploy|system|feature|dashboard|component/i;
+  const multiTaskIndicators = /and\s+also|then\s+also|multiple|several|step by step|in parallel|sub-agent|subagent/i;
+
+  if (buildIntents.test(t)) return true;
+  if (multiTaskIndicators.test(t)) return true;
+  if (t.split(/\s+/).length > 20) return true;
+
+  return false;
+}
+
     // Real LLM path
     const { ModelProvider } = await import('@cluster/agent-core');
     const { createDefaultRegistry, createPhase2Registry } = await import('@cluster/tool-runtime');
@@ -646,8 +668,9 @@ function registerIpc() {
       session.model = activeModel;
       await store.flush();
     }
+    const isMulti = shouldSpawnSubAgents(payload.text, payload.mode);
     const provider = new ModelProvider({ ...cfg, model: activeModel });
-    const registry = payload.mode==='multi' ? createPhase2Registry() : createDefaultRegistry();
+    const registry = isMulti ? createPhase2Registry() : createDefaultRegistry();
     const events = new Emitter<any>((e:any)=>console.error(e));
     const controller = new AbortController();
     activeControllers.set(payload.sessionId, controller);
@@ -713,8 +736,12 @@ function registerIpc() {
       else if (ev==='delta') emit('agent:delta', { sessionId: payload.sessionId, text: data.text })
       else if (ev==='memory:recalled') emit('agent:memory:recalled', { sessionId: payload.sessionId, memories: data.memories });
       else if (ev==='file:progress') emit('agent:file:progress', { sessionId: payload.sessionId, ...data });
+      else if (ev==='subagent:spawn') emit('agent:subagent:spawn', { sessionId: payload.sessionId, subAgent: data.subAgent });
+      else if (ev==='subagent:update') emit('agent:subagent:update', { sessionId: payload.sessionId, subAgent: data.subAgent });
+      else if (ev==='subagent:handoff') emit('agent:subagent:handoff', { sessionId: payload.sessionId, handoff: data.handoff });
+      else if (ev==='subagent:done') emit('agent:subagent:done', { sessionId: payload.sessionId, swarmSummary: data.swarmSummary });
     });
-    ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done','memory:recalled','file:progress'].forEach(forwardReal);
+    ['message','delta','tool:start','tool:end','tool:output','progress','plan','state','error','done','memory:recalled','file:progress','subagent:spawn','subagent:update','subagent:handoff','subagent:done'].forEach(forwardReal);
 
     const needConfirm = async (req:any)=>{
       emit('agent:confirm', { sessionId: payload.sessionId, request: req });
@@ -738,19 +765,35 @@ function registerIpc() {
       await memory.init().catch(() => null);
 
       const history = toProviderMessages(session.messages, session.toolCalls);
-      const isMulti = payload.mode === 'multi';
       if (isMulti) {
         // Multi-agent via Coordinator
         const coordinator = new Coordinator({ config: cfg, provider, registry, projectRoot, sessionId: payload.sessionId, events, backupsDir: paths.backupsDir });
         const graph = await coordinator.createPlan(payload.text);
         emit('agent:graph', { sessionId: payload.sessionId, graph });
         const res = await coordinator.runGraph(graph, controller.signal);
-        const summaryText = Array.from(res.results.entries()).map(([k, v]) => `- **${k}**: ${v.success ? '✓' : '✕'} ${v.summary}`).join('\n');
+        const subAgents = coordinator.getSubAgents();
+        
+        let summaryContent = `### Multi-Agent Coordination Complete\n\n`;
+        summaryContent += `The Main Coordinator deployed **${subAgents.length} specialized sub-agents** to work concurrently on this goal.\n\n`;
+        summaryContent += `#### Sub-Agent Execution Breakdown\n`;
+        for (const sa of subAgents) {
+          const statusIcon = sa.status === 'reported' || sa.status === 'done' ? '✓' : '✕';
+          summaryContent += `- **${sa.name}** (\`${sa.role}\`): ${statusIcon} ${sa.summary || sa.message || 'Completed task responsibilities.'}\n`;
+        }
+
+        const filesChanged = Array.from(new Set(Object.values(res.graph.tasks).flatMap((t) => t.files || [])));
+        if (filesChanged.length > 0) {
+          summaryContent += `\n#### Files Touched\n`;
+          for (const f of filesChanged) {
+            summaryContent += `- \`${f}\`\n`;
+          }
+        }
+
         const summaryMsg = {
           id: createId('msg'),
           sessionId: payload.sessionId,
           role: 'assistant' as const,
-          content: `### Execution Summary\n\n${summaryText || 'Multi-agent plan execution completed.'}`,
+          content: summaryContent,
           createdAt: new Date().toISOString(),
           kind: 'summary' as const,
         };

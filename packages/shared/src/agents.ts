@@ -45,6 +45,60 @@ export interface AgentResult {
   durationMs: number;
 }
 
+export interface SubAgentState {
+  id: string;
+  sessionId: string;
+  name: string;
+  role: AgentRole;
+  status: 'spawning' | 'running' | 'waiting' | 'reported' | 'done' | 'failed';
+  phase?: 'planning' | 'researching' | 'coding' | 'reviewing' | 'testing' | 'merging';
+  currentTask?: string;
+  taskId?: string;
+  progress: number;
+  message?: string;
+  summary?: string;
+  output?: string;
+  filesAssigned?: string[];
+  filesModified?: string[];
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+export interface SubAgentHandoff {
+  id: string;
+  sessionId: string;
+  fromAgentId: string;
+  fromAgentName: string;
+  fromRole: AgentRole;
+  toAgentId: string;
+  action: 'delegated' | 'started' | 'reported' | 'reviewed' | 'merged' | 'rejected';
+  taskTitle: string;
+  resultSummary?: string;
+  filesTouched?: string[];
+  timestamp: string;
+}
+
+export interface SubAgentSwarmSummary {
+  goal: string;
+  coordinatorNotes: string;
+  subAgentsCount: number;
+  subAgents: Array<{
+    name: string;
+    role: AgentRole;
+    tasksCompleted: number;
+    filesModified: string[];
+    summary: string;
+  }>;
+  filesChanged: string[];
+  decisions: string[];
+  verification: {
+    passed: boolean;
+    summary: string;
+  };
+  caveats?: string[];
+  totalDurationMs: number;
+}
+
 export const AGENT_DEFINITIONS: Record<AgentRole, AgentDefinition> = {
   planner: {
     role: 'planner',
@@ -123,10 +177,52 @@ export const AGENT_DEFINITIONS: Record<AgentRole, AgentDefinition> = {
       '- Do not make edits or run commands.',
     ].join('\n'),
   },
+  researcher: {
+    role: 'researcher',
+    name: 'Researcher',
+    description: 'Investigates codebase structure, packages, dependencies, and patterns',
+    allowedTools: ['workspace_info', 'list_files', 'read_file', 'search_text', 'git_status'],
+    deniedTools: ['write_file', 'patch_file', 'run_command'],
+    parallelizable: true,
+    maxConcurrency: 3,
+    systemPrompt: [
+      'You are the Researcher agent. You inspect and analyze the codebase without making edits.',
+      '- Discover directory layouts, package manifests, and code conventions.',
+      '- Read relevant source files and report concise, actionable findings to the coordinator and builders.',
+      '- Do not edit files or run build commands.',
+    ].join('\n'),
+  },
+  'ui-builder': {
+    role: 'ui-builder',
+    name: 'UI Builder',
+    description: 'Specializes in user interfaces, components, layouts, Tailwind CSS, and styling',
+    allowedTools: ['read_file', 'list_files', 'search_text', 'write_file', 'patch_file', 'workspace_info'],
+    parallelizable: true,
+    maxConcurrency: 2,
+    systemPrompt: [
+      'You are the UI Builder agent. You design and implement beautiful, accessible, responsive interfaces.',
+      '- Read existing component files to match styling conventions and design patterns.',
+      '- Use Tailwind CSS cleanly with proper flex/grid containment to prevent overlaps.',
+      '- Ensure clean states, responsive constraints, and pristine component layouts.',
+    ].join('\n'),
+  },
+  'backend-builder': {
+    role: 'backend-builder',
+    name: 'Backend Builder',
+    description: 'Specializes in APIs, server logic, IPC handlers, data models, and storage',
+    allowedTools: ['read_file', 'list_files', 'search_text', 'write_file', 'patch_file', 'workspace_info'],
+    parallelizable: true,
+    maxConcurrency: 2,
+    systemPrompt: [
+      'You are the Backend Builder agent. You implement robust backend logic, APIs, and data models.',
+      '- Write type-safe handlers, error handling, and robust storage interactions.',
+      '- Follow established architecture patterns without breaking existing contracts.',
+    ].join('\n'),
+  },
   coordinator: {
     role: 'coordinator',
     name: 'Coordinator',
-    description: 'Manages task assignment and merges results',
+    description: 'Manages task assignment, subagent coordination, and merges results',
     allowedTools: ['workspace_info', 'list_files', 'read_file', 'search_text', 'git_status', 'write_file', 'patch_file', 'run_command'],
     parallelizable: false,
     maxConcurrency: 1,

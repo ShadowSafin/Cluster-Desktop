@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import type { SubAgentState, SubAgentHandoff, SubAgentSwarmSummary } from '@cluster/shared';
 
 export type AgentPhase = 'idle'|'planning'|'thinking'|'reading'|'editing'|'running'|'verifying'|'summarizing'|'waiting'|'done'|'error'|'cancelled';
 export interface AgentState {
@@ -48,6 +49,9 @@ export function useAgent(sessionId: string | null) {
   const [running, setRunning] = useState(false);
   const [plan, setPlan] = useState<any|null>(null);
   const [taskGraph, setTaskGraph] = useState<TaskGraph|null>(null);
+  const [subAgents, setSubAgents] = useState<Record<string, SubAgentState>>({});
+  const [handoffs, setHandoffs] = useState<SubAgentHandoff[]>([]);
+  const [swarmSummary, setSwarmSummary] = useState<SubAgentSwarmSummary | null>(null);
   const [liveOutput, setLiveOutput] = useState<Record<string,string>>({});
   const [activity, setActivity] = useState<string[]>([]);
   const [edits, setEdits] = useState<any[]>([]);
@@ -97,7 +101,7 @@ export function useAgent(sessionId: string | null) {
 
   useEffect(() => {
     if (!sessionId) {
-      setEntries([]); setPlan(null); setTaskGraph(null); setEdits([]); setActivity([]); setLiveOutput({}); setJobs([]); setStreamingText(''); setAgentState({ phase:'idle', label:'Ready', iteration:0, maxIterations:40 }); setRunning(false);
+      setEntries([]); setPlan(null); setTaskGraph(null); setSubAgents({}); setHandoffs([]); setSwarmSummary(null); setEdits([]); setActivity([]); setLiveOutput({}); setJobs([]); setStreamingText(''); setAgentState({ phase:'idle', label:'Ready', iteration:0, maxIterations:40 }); setRunning(false);
       streamingBufferRef.current = '';
       toolOutputBufferRef.current = {};
       activityQueueRef.current = [];
@@ -295,6 +299,24 @@ export function useAgent(sessionId: string | null) {
         });
         pushActivity(`[file] ${data.action}: ${data.file} (${data.fileIndex}/${data.totalFiles})`);
       }),
+      (window.cluster.agent as any).onSubAgentSpawn?.(({ sessionId: sid, subAgent }: any) => {
+        if (sid !== sessionId) return;
+        setSubAgents((prev) => ({ ...prev, [subAgent.id]: subAgent }));
+        pushActivity(`🤖 Spawned [${subAgent.name}] for ${subAgent.role}`);
+      }),
+      (window.cluster.agent as any).onSubAgentUpdate?.(({ sessionId: sid, subAgent }: any) => {
+        if (sid !== sessionId) return;
+        setSubAgents((prev) => ({ ...prev, [subAgent.id]: subAgent }));
+      }),
+      (window.cluster.agent as any).onSubAgentHandoff?.(({ sessionId: sid, handoff }: any) => {
+        if (sid !== sessionId) return;
+        setHandoffs((prev) => [...prev.slice(-40), handoff]);
+        pushActivity(`🔄 Handoff [${handoff.fromAgentName}]: ${handoff.action}`);
+      }),
+      (window.cluster.agent as any).onSubAgentDone?.(({ sessionId: sid, swarmSummary }: any) => {
+        if (sid !== sessionId) return;
+        setSwarmSummary(swarmSummary);
+      }),
       window.cluster.agent.onDone(({ sessionId: sid, summary, cancelled }) => {
         if (sid!==sessionId) return;
         setRunning(false);
@@ -330,10 +352,13 @@ export function useAgent(sessionId: string | null) {
     setLiveOutput({});
     toolOutputBufferRef.current = {};
     setFileProgress(null);
+    setSubAgents({});
+    setHandoffs([]);
+    setSwarmSummary(null);
     const isMulti = trimmed.startsWith('/multi ');
     const actualText = isMulti ? trimmed.replace(/^\/multi\s+/, '') : trimmed;
     try {
-      await window.cluster.agent.send({ sessionId, text: actualText, mode: isMulti ? 'multi' : 'single' });
+      await window.cluster.agent.send({ sessionId, text: actualText, mode: isMulti ? 'multi' : undefined });
     } catch (e:any) {
       pushActivity(`send failed: ${e.message}`);
       setRunning(false);
@@ -369,7 +394,34 @@ export function useAgent(sessionId: string | null) {
     toolOutputBufferRef.current = {};
     setFileProgress(null);
     setActiveSkill(null);
+    setSubAgents({});
+    setHandoffs([]);
+    setSwarmSummary(null);
   }, [flushStreaming]);
 
-  return { entries, agentState, running, plan, taskGraph, liveOutput, activity, edits, jobs, streamingText, pendingConfirm, recalledMemories, fileProgress, activeSkill, submit, cancel, confirm, clear, setEntries, setTaskGraph };
+  return {
+    entries,
+    agentState,
+    running,
+    plan,
+    taskGraph,
+    subAgents,
+    handoffs,
+    swarmSummary,
+    liveOutput,
+    activity,
+    edits,
+    jobs,
+    streamingText,
+    pendingConfirm,
+    recalledMemories,
+    fileProgress,
+    activeSkill,
+    submit,
+    cancel,
+    confirm,
+    clear,
+    setEntries,
+    setTaskGraph,
+  };
 }

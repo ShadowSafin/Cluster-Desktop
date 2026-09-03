@@ -492,6 +492,9 @@ export default function App() {
               activity={agent.activity}
               pendingConfirm={agent.pendingConfirm}
               taskGraph={agent.taskGraph}
+              subAgents={agent.subAgents}
+              handoffs={agent.handoffs}
+              swarmSummary={agent.swarmSummary}
               plan={agent.plan}
               onSubmit={onWorkspaceSubmit}
               onCancel={agent.cancel}

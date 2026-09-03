@@ -23,10 +23,13 @@ import {
 import { Composer } from '../components/Composer';
 import { WorkflowCard, type CardType, type CardStatus } from '../components/WorkflowCard';
 import { FileProgressCard } from '../components/FileProgressCard';
+import { SubAgentSwarmPanel } from '../components/SubAgentSwarmPanel';
+import { SubAgentSummaryCard } from '../components/SubAgentSummaryCard';
 import { PerfDiagnosticsModal } from '../components/PerfDiagnosticsModal';
 import { ClusterLogo } from '../components/ClusterLogo';
 import { useVirtualList } from '../hooks/useVirtualList';
 import type { TimelineEntry, AgentState, FileProgressState } from '../hooks/useAgent';
+import type { SubAgentState, SubAgentHandoff, SubAgentSwarmSummary } from '@cluster/shared';
 
 interface WorkspacePageProps {
   sessionTitle: string;
@@ -38,6 +41,9 @@ interface WorkspacePageProps {
   activity: string[];
   pendingConfirm: any;
   taskGraph: any;
+  subAgents?: Record<string, SubAgentState>;
+  handoffs?: SubAgentHandoff[];
+  swarmSummary?: SubAgentSwarmSummary | null;
   plan: any;
   recalledMemories?: any[];
   fileProgress?: FileProgressState | null;
@@ -251,6 +257,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   activity,
   pendingConfirm,
   taskGraph,
+  subAgents,
+  handoffs,
+  swarmSummary,
   plan,
   recalledMemories,
   fileProgress,
@@ -789,6 +798,16 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             {/* Live Sequential File Generation Progress */}
             {fileProgress && (
               <FileProgressCard progress={fileProgress} dense={isCompact} />
+            )}
+
+            {/* Live Sub-Agent Swarm Status & Handoff Feed */}
+            {subAgents && Object.keys(subAgents).length > 0 && (
+              <SubAgentSwarmPanel subAgents={subAgents} handoffs={handoffs} />
+            )}
+
+            {/* Coordinated Swarm Summary Card */}
+            {swarmSummary && (
+              <SubAgentSummaryCard summary={swarmSummary} />
             )}
 
             {/* Welcome Card if empty */}

@@ -60,4 +60,8 @@ export interface AgentEvents {
   workspace: WorkspaceInfo;
   'memory:recalled': { sessionId: string; memories: any[] };
   'file:progress': FileProgressEvent;
+  'subagent:spawn': { sessionId: string; subAgent: import('@cluster/shared').SubAgentState };
+  'subagent:update': { sessionId: string; subAgent: import('@cluster/shared').SubAgentState };
+  'subagent:handoff': { sessionId: string; handoff: import('@cluster/shared').SubAgentHandoff };
+  'subagent:done': { sessionId: string; swarmSummary: import('@cluster/shared').SubAgentSwarmSummary };
 }

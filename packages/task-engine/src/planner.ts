@@ -107,25 +107,67 @@ export class TaskPlanner {
   private inferSteps(input: PlannerInput): PlannedTask[] {
     const goal = input.goal.toLowerCase();
     const steps: PlannedTask[] = [];
+    const isComplex = input.goal.split(/\s+/).length > 15 || /and|also|then|multiple|several|full|system/.test(goal);
 
-    // Always start with context gathering
+    // Always start with context & research gathering
+    const needsResearch = /analyze|research|audit|inspect|explore|find|investigate/.test(goal) || isComplex;
     steps.push({
-      title: 'Gather context and analyze request',
+      title: 'Analyze workspace and discover code patterns',
       description: `Analyze: ${input.goal.slice(0, 200)}`,
-      agentRole: 'context',
+      agentRole: needsResearch ? 'researcher' : 'context',
       priority: 'high',
       complexity: 1,
     });
 
     // Detect intent categories
-    const needsCoding = /fix|implement|add|create|build|refactor|update|change|edit/.test(goal);
+    const needsUI = /ui|component|page|screen|button|view|layout|css|tailwind|style|modal|dialog|card|sidebar|header|tab/.test(goal);
+    const needsBackend = /api|server|backend|ipc|database|sqlite|route|endpoint|store|storage|socket|process/.test(goal);
+    const needsCoding = /fix|implement|add|create|build|refactor|update|change|edit/.test(goal) || needsUI || needsBackend;
     const needsTests = /test|verify|check|lint|build|typecheck/.test(goal) || needsCoding;
     const needsReview = needsCoding;
-    const isComplex = input.goal.split(/\s+/).length > 20 || /and|also|then|multiple|several/.test(goal);
-    const needsPlanning = isComplex || goal.includes('complex') || goal.length > 100;
 
     if (needsCoding) {
-      if (isComplex) {
+      if (isComplex && (needsUI || needsBackend)) {
+        steps.push({
+          title: 'Plan architecture and task dependencies',
+          agentRole: 'planner',
+          dependsOn: [0],
+          priority: 'high',
+          complexity: 2,
+        });
+
+        const planIdx = steps.length - 1;
+
+        if (needsUI) {
+          steps.push({
+            title: 'Build UI components and layout styling',
+            agentRole: 'ui-builder',
+            dependsOn: [planIdx], // runs in parallel with backend builder
+            priority: 'high',
+            complexity: 3,
+          });
+        }
+
+        if (needsBackend) {
+          steps.push({
+            title: 'Implement backend services and data logic',
+            agentRole: 'backend-builder',
+            dependsOn: [planIdx], // runs in parallel with UI builder
+            priority: 'high',
+            complexity: 3,
+          });
+        }
+
+        if (!needsUI && !needsBackend) {
+          steps.push({
+            title: 'Implement core application features',
+            agentRole: 'coder',
+            dependsOn: [planIdx],
+            priority: 'high',
+            complexity: 3,
+          });
+        }
+      } else if (isComplex) {
         steps.push({
           title: 'Break down implementation into subtasks',
           agentRole: 'planner',
@@ -134,26 +176,25 @@ export class TaskPlanner {
           complexity: 2,
         });
         steps.push({
-          title: 'Implement core changes',
+          title: 'Implement primary feature logic',
           agentRole: 'coder',
-          dependsOn: [steps.length - 1 ? steps.length : 1],
+          dependsOn: [steps.length - 1],
           priority: 'high',
           complexity: 3,
         });
-        // Second coder task can run in parallel if independent
         if (input.fileGroups && input.fileGroups.length > 1) {
           steps.push({
-            title: 'Implement secondary changes (parallel)',
+            title: 'Implement auxiliary components in parallel',
             agentRole: 'coder',
-            dependsOn: [1], // depends on planning, not on first coder task -> parallel
+            dependsOn: [1], // parallel with primary coder
             priority: 'normal',
             complexity: 3,
           });
         }
       } else {
         steps.push({
-          title: 'Implement requested changes',
-          agentRole: 'coder',
+          title: needsUI ? 'Build UI interface' : needsBackend ? 'Implement service logic' : 'Implement requested changes',
+          agentRole: needsUI ? 'ui-builder' : needsBackend ? 'backend-builder' : 'coder',
           dependsOn: [0],
           priority: 'high',
           complexity: 3,
@@ -162,11 +203,14 @@ export class TaskPlanner {
     }
 
     if (needsReview) {
-      const coderIdx = steps.findIndex((s) => s.agentRole === 'coder');
+      const builderIndices = steps
+        .map((s, idx) => ({ role: s.agentRole, idx }))
+        .filter((s) => s.role === 'coder' || s.role === 'ui-builder' || s.role === 'backend-builder')
+        .map((s) => s.idx);
       steps.push({
-        title: 'Review code changes',
+        title: 'Review implementation diffs and verify code standards',
         agentRole: 'reviewer',
-        dependsOn: coderIdx >= 0 ? [coderIdx] : [0],
+        dependsOn: builderIndices.length > 0 ? builderIndices : [0],
         priority: 'normal',
         complexity: 2,
       });
@@ -174,12 +218,15 @@ export class TaskPlanner {
 
     if (needsTests) {
       const reviewIdx = steps.findIndex((s) => s.agentRole === 'reviewer');
-      const coderIdx = steps.findIndex((s) => s.agentRole === 'coder');
-      const dep = reviewIdx >= 0 ? reviewIdx : coderIdx >= 0 ? coderIdx : 0;
+      const builderIndices = steps
+        .map((s, idx) => ({ role: s.agentRole, idx }))
+        .filter((s) => s.role === 'coder' || s.role === 'ui-builder' || s.role === 'backend-builder')
+        .map((s) => s.idx);
+      const dep = reviewIdx >= 0 ? [reviewIdx] : builderIndices.length > 0 ? builderIndices : [0];
       steps.push({
-        title: 'Run verification and tests',
+        title: 'Run test suite and verify build diagnostics',
         agentRole: 'tester',
-        dependsOn: [dep],
+        dependsOn: dep,
         priority: 'high',
         complexity: 2,
       });
@@ -188,7 +235,7 @@ export class TaskPlanner {
     // Ensure at least 2 steps for non-trivial goals
     if (steps.length === 1 && input.goal.length > 30) {
       steps.push({
-        title: 'Execute and verify',
+        title: 'Execute implementation plan',
         agentRole: 'coder',
         dependsOn: [0],
         priority: 'normal',

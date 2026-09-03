@@ -23,6 +23,9 @@ export type AgentRole =
   | 'coder'
   | 'reviewer'
   | 'tester'
+  | 'researcher'
+  | 'ui-builder'
+  | 'backend-builder'
   | 'context'
   | 'coordinator';
 
@@ -35,6 +38,12 @@ export interface Task {
   priority: TaskPriority;
   /** Agent role assigned to this task, null means unassigned. */
   agentRole: AgentRole | null;
+  /** Specific sub-agent instance ID executing this task. */
+  subAgentId?: string | null;
+  /** Human-readable assigned sub-agent name (e.g. 'Coder Alpha', 'UI Specialist'). */
+  assignedAgentName?: string | null;
+  /** Reporting and handoff state between sub-agent and main coordinator. */
+  handoffStatus?: 'pending' | 'in-progress' | 'reported' | 'merged' | 'rejected' | null;
   /** IDs of tasks this task depends on. */
   dependsOn: string[];
   /** IDs of tasks that depend on this task (convenience, derived). */

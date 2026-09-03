@@ -95,6 +95,10 @@ export type IpcApi = {
     onConfirm: (cb:(data:any)=>void)=>()=>void;
     onDone: (cb: (data: any) => void) => () => void;
     onFileProgress: (cb: (data: any) => void) => () => void;
+    onSubAgentSpawn: (cb: (data: { sessionId: string; subAgent: any }) => void) => () => void;
+    onSubAgentUpdate: (cb: (data: { sessionId: string; subAgent: any }) => void) => () => void;
+    onSubAgentHandoff: (cb: (data: { sessionId: string; handoff: any }) => void) => () => void;
+    onSubAgentDone: (cb: (data: { sessionId: string; swarmSummary: any }) => void) => () => void;
   };
 };
 
@@ -196,6 +200,10 @@ const api: IpcApi = {
     onConfirm: (cb)=>{ const h=(_e:any,d:any)=>cb(d); ipcRenderer.on('agent:confirm',h); return ()=>ipcRenderer.removeListener('agent:confirm',h); },
     onDone: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:done', h); return () => ipcRenderer.removeListener('agent:done', h); },
     onFileProgress: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:file:progress', h); return () => ipcRenderer.removeListener('agent:file:progress', h); },
+    onSubAgentSpawn: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:subagent:spawn', h); return () => ipcRenderer.removeListener('agent:subagent:spawn', h); },
+    onSubAgentUpdate: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:subagent:update', h); return () => ipcRenderer.removeListener('agent:subagent:update', h); },
+    onSubAgentHandoff: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:subagent:handoff', h); return () => ipcRenderer.removeListener('agent:subagent:handoff', h); },
+    onSubAgentDone: (cb) => { const h = (_e: any, d: any) => cb(d); ipcRenderer.on('agent:subagent:done', h); return () => ipcRenderer.removeListener('agent:subagent:done', h); },
   },
 };
 
