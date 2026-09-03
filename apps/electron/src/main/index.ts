@@ -21,7 +21,8 @@ async function resolveRendererEntry(): Promise<string> {
 }
 
 function createWindow() {
-  const iconPath = path.resolve(__dirname, '../../resources/icon.png');
+  const iconFileName = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  const iconPath = path.resolve(__dirname, `../../resources/${iconFileName}`);
 
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -1189,6 +1190,9 @@ function registerIpc() {
 }
 
 app.whenReady().then(async () => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('ai.cluster.desktop');
+  }
   registerIpc();
   const win = createWindow();
   await loadRenderer(win);
