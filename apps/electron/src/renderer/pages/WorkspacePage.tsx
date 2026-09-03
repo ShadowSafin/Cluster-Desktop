@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   ChevronDown,
   MoreHorizontal,
@@ -11,6 +11,9 @@ import {
   Activity,
   ArrowDown,
   AlertTriangle,
+  Sparkles,
+  TerminalSquare,
+  GitBranch,
 } from 'lucide-react';
 import { Composer } from '../components/Composer';
 import { WorkflowCard, type CardType, type CardStatus } from '../components/WorkflowCard';
@@ -175,7 +178,7 @@ const TimelineEntryCard: React.FC<{
         output={liveOut}
         diff={result.data?.diff}
         metadata={metadata}
-        onAction={(action, payload) => {
+        onAction={(action) => {
           if (action === 'view_diff') onOpenDiffs();
         }}
       />
@@ -203,9 +206,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   fileProgress,
   activeSkill,
   verificationReport,
-  workspaceName = 'Project Atlas',
-  projectRoot = '~/projects/cluster',
-  gitBranch = 'main',
+  workspaceName = 'Workspace',
+  projectRoot,
+  gitBranch,
   model = 'Claude 3.5 Sonnet',
   provider = 'Anthropic',
   edits = [],
@@ -238,36 +241,36 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
     isUserScrolledUpRef.current = isUp;
   };
 
-  // Mock initial demo turn matching reference image if no messages yet
-  const showInitialDemoTurn = entries.length === 0 && !streamingText && !running;
+  const cleanPath = projectRoot ? projectRoot.replace(/\\/g, '/') : '~/projects/cluster';
 
   return (
-    <div className="flex-1 flex h-full min-h-0 bg-[#0B0E14] text-[#F1F5F9] overflow-hidden select-none font-sans">
-      {/* Center Column: Main Chat Header, Message Feed & Bottom Composer */}
-      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#0B0E14] overflow-hidden">
+    <div className="flex-1 flex h-full min-h-0 bg-[#09090b] text-[#f4f4f5] overflow-hidden select-none font-sans">
+      {/* Center Column: Main Chat Header, Real Message Feed & Bottom Composer */}
+      <div className="flex-1 flex flex-col h-full min-w-0 bg-[#09090b] overflow-hidden">
         {/* Workspace Chat Header */}
-        <div className="h-12 px-6 border-b border-[#1E2536] bg-[#0B0E14] flex items-center justify-between shrink-0">
-          {/* Left: ● Project Atlas ∨ */}
+        <div className="h-11 px-5 border-b border-[#1f1f24] bg-[#0c0c0e] flex items-center justify-between shrink-0">
+          {/* Left: ● Workspace Name ∨ */}
           <button
             onClick={onOpenWorkspaceSwitcher}
+            title={`Active Workspace: ${cleanPath}\nClick to switch (Ctrl+O)`}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer group"
           >
-            <span className="w-2 h-2 rounded-full bg-[#10B981] shrink-0" />
-            <span className="font-semibold text-white text-sm tracking-wide group-hover:text-[#3B82F6] transition-colors">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+            <span className="font-semibold text-zinc-200 text-xs tracking-wide group-hover:text-white transition-colors">
               {workspaceName}
             </span>
-            <ChevronDown className="w-3.5 h-3.5 text-[#64748B] group-hover:text-white transition-colors" />
+            <ChevronDown className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
           </button>
 
           {/* Right: Segmented tabs [Chat] [Plan] [Files] ••• */}
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center bg-[#111722] p-0.5 rounded-lg border border-[#1E2536]">
+            <div className="flex items-center bg-[#131317] p-0.5 rounded-lg border border-[#1f1f25]">
               <button
                 onClick={() => setActiveTab('chat')}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   activeTab === 'chat'
-                    ? 'bg-[#1C2538] text-white border border-[#27344D] shadow-sm'
-                    : 'text-[#94A3B8] hover:text-white'
+                    ? 'bg-[#1e1e25] text-white border border-[#2b2b34] shadow-sm'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 Chat
@@ -277,10 +280,10 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                   setActiveTab('plan');
                   onOpenTasks();
                 }}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   activeTab === 'plan'
-                    ? 'bg-[#1C2538] text-white border border-[#27344D] shadow-sm'
-                    : 'text-[#94A3B8] hover:text-white'
+                    ? 'bg-[#1e1e25] text-white border border-[#2b2b34] shadow-sm'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 Plan
@@ -290,10 +293,10 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                   setActiveTab('files');
                   onOpenDiffs();
                 }}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   activeTab === 'files'
-                    ? 'bg-[#1C2538] text-white border border-[#27344D] shadow-sm'
-                    : 'text-[#94A3B8] hover:text-white'
+                    ? 'bg-[#1e1e25] text-white border border-[#2b2b34] shadow-sm'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 Files
@@ -301,7 +304,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             </div>
 
             <button
-              className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#161D2B] transition-colors ml-1"
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-[#16161b] transition-colors ml-1 cursor-pointer"
               title="More options"
             >
               <MoreHorizontal className="w-4 h-4" />
@@ -309,156 +312,49 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
           </div>
         </div>
 
-        {/* Scrollable Conversation Timeline */}
+        {/* Scrollable Real Conversation Feed */}
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-6 py-6 space-y-4 min-h-0 relative"
+          className="flex-1 overflow-y-auto px-6 py-5 space-y-3.5 min-h-0 relative"
         >
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-3xl mx-auto space-y-3.5">
             {/* Live Verification Active Banner */}
             <VerificationActiveBanner phase={agentState.phase} label={agentState.label} dense={false} />
 
-            {/* Reference Image Initial Turn (displayed when fresh session) */}
-            {showInitialDemoTurn && (
-              <>
-                {/* User Message */}
-                <div className="w-full rounded-2xl bg-[#121722] border border-[#1E2536] p-4 text-xs transition-all shadow-sm">
-                  <div className="flex items-center justify-between gap-2 mb-2 select-none">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-[#1E2638] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0">
-                        <span className="text-[10px] font-semibold">U</span>
-                      </div>
-                      <span className="font-semibold text-white text-xs">You</span>
-                    </div>
-                    <span className="text-[11px] font-mono text-[#64748B]">10:24 AM</span>
-                  </div>
-                  <div className="text-[#E2E8F0] text-sm leading-relaxed whitespace-pre-wrap pl-8 font-sans">
-                    Add a dark mode toggle to the settings page and persist the preference.
-                  </div>
+            {/* Real Intentional Developer Welcome State (when session is empty) */}
+            {entries.length === 0 && !streamingText && !running && (
+              <div className="my-8 rounded-2xl border border-[#1f1f25] bg-[#121215] p-6 text-center space-y-4 shadow-sm">
+                <div className="flex items-center justify-center">
+                  <ClusterLogo size={36} rounded={true} withShadow={false} />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-zinc-100 tracking-wide">
+                    Cluster Coding Assistant
+                  </h2>
+                  <p className="text-xs text-zinc-400 mt-1 max-w-md mx-auto leading-relaxed">
+                    Ready to plan, write, inspect, and verify code in{' '}
+                    <span className="font-mono text-zinc-300 font-semibold">{workspaceName}</span>.
+                  </p>
                 </div>
 
-                {/* Assistant Turn */}
-                <div className="w-full rounded-2xl bg-[#121722] border border-[#1E2536] p-4 text-xs transition-all shadow-sm space-y-3">
-                  <div className="flex items-center justify-between gap-2 select-none">
-                    <div className="flex items-center gap-2">
-                      <ClusterLogo size={22} rounded={true} withShadow={false} />
-                      <span className="font-semibold text-white text-xs">Cluster Assistant</span>
-                    </div>
-                    <span className="text-[11px] font-mono text-[#64748B]">10:24 AM</span>
-                  </div>
-
-                  <div className="text-[#E2E8F0] text-sm leading-relaxed whitespace-pre-wrap pl-8 font-sans">
-                    I'll add a dark mode toggle to the settings page, persist the preference in storage, and apply it across the app.
-                  </div>
-
-                  {/* Nested Execution Plan Card */}
-                  <div className="pl-8 pt-1 space-y-3">
-                    <div className="rounded-2xl bg-[#161D2B] border border-[#222B3D] p-4 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-white tracking-wide">
-                        <Compass className="w-4 h-4 text-[#3B82F6]" />
-                        <span>Execution Plan</span>
-                      </div>
-
-                      <div className="divide-y divide-[#1F273B] rounded-xl bg-[#131825] border border-[#1E2536] p-1">
-                        {/* Step 1 */}
-                        <div className="p-3 flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <div className="w-4 h-4 rounded-full bg-[#10B981]/20 text-[#10B981] flex items-center justify-center shrink-0 mt-0.5">
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-white text-xs">Add dark mode toggle UI in settings</div>
-                              <div className="text-[#94A3B8] text-[11px] mt-0.5">Create a toggle component and place it in the appearance section.</div>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 shrink-0">
-                            Completed
-                          </span>
-                        </div>
-
-                        {/* Step 2 */}
-                        <div className="p-3 flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <div className="w-4 h-4 rounded-full bg-[#10B981]/20 text-[#10B981] flex items-center justify-center shrink-0 mt-0.5">
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-white text-xs">Persist preference</div>
-                              <div className="text-[#94A3B8] text-[11px] mt-0.5">Store the theme preference in local storage.</div>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 shrink-0">
-                            Completed
-                          </span>
-                        </div>
-
-                        {/* Step 3 */}
-                        <div className="p-3 flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <div className="w-4 h-4 rounded-full bg-[#3B82F6] flex items-center justify-center shrink-0 mt-0.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-white text-xs">Apply theme globally</div>
-                              <div className="text-[#94A3B8] text-[11px] mt-0.5">Update the theme context and apply class to &lt;html&gt;.</div>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#3B82F6]/15 text-[#3B82F6] border border-[#3B82F6]/30 shrink-0 animate-pulse">
-                            In Progress
-                          </span>
-                        </div>
-
-                        {/* Step 4 */}
-                        <div className="p-3 flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <Circle className="w-4 h-4 text-[#475569] shrink-0 mt-0.5" />
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-[#94A3B8] text-xs">Verify and test</div>
-                              <div className="text-[#64748B] text-[11px] mt-0.5">Ensure the theme persists on reload and across pages.</div>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#1E2536] text-[#64748B] shrink-0">
-                            Pending
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Edited file card */}
-                    <div className="rounded-2xl bg-[#121722] border border-[#1E2536] p-3 text-xs shadow-sm flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <FileEdit className="w-4 h-4 text-[#10B981] shrink-0" />
-                        <span className="text-white font-medium truncate">
-                          Edited: <span className="font-mono text-zinc-300">settings/appearance.tsx</span>
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#182030] border border-[#222C40] font-mono text-[11px] shrink-0">
-                        <span className="text-[#10B981]">+42</span>
-                        <span className="text-[#EF4444]">-18</span>
-                      </div>
-                    </div>
-
-                    {/* Running task card with progress bar */}
-                    <div className="rounded-2xl bg-[#121722] border border-[#1E2536] p-3.5 text-xs shadow-sm space-y-2">
-                      <div className="flex items-center justify-between text-xs font-semibold text-white">
-                        <div className="flex items-center gap-2">
-                          <Activity className="w-4 h-4 text-[#3B82F6] animate-spin" />
-                          <span className="font-mono text-xs">Running: apply-theme.ts</span>
-                        </div>
-                        <span className="font-mono text-xs text-[#94A3B8]">60%</span>
-                      </div>
-
-                      <div className="w-full h-1 rounded-full bg-[#1A2234] overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-[#3B82F6] to-[#6366F1] transition-all duration-300 rounded-full"
-                          style={{ width: '60%' }}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-2 max-w-lg mx-auto">
+                  {[
+                    'Explain repository structure and key modules',
+                    'Inspect git status and uncommitted changes',
+                    'Run test suite and review results',
+                    'Review open tasks and plan next sprint',
+                  ].map((prompt) => (
+                    <button
+                      key={prompt}
+                      onClick={() => onSubmit(prompt)}
+                      className="px-3 py-1.5 rounded-xl text-[11px] bg-[#17171d] hover:bg-[#1f1f26] border border-[#22222a] hover:border-[#32323e] text-zinc-300 hover:text-white transition-all cursor-pointer shadow-sm text-left"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
                 </div>
-              </>
+              </div>
             )}
 
             {/* Real Timeline Stream */}
@@ -473,13 +369,13 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
             {/* Active Streaming Response Card */}
             {running && streamingText && (
-              <div className="w-full rounded-2xl bg-[#121722] border border-[#1E2536] p-4 text-xs transition-all shadow-sm space-y-2 animate-in fade-in">
-                <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                  <ClusterLogo size={20} rounded={true} withShadow={false} />
+              <div className="w-full rounded-2xl bg-[#121215] border border-[#202026] p-4 text-xs transition-all shadow-sm space-y-2 animate-in fade-in">
+                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                  <ClusterLogo size={18} rounded={true} withShadow={false} />
                   <span>Cluster Assistant</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] animate-ping ml-1" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse ml-1" />
                 </div>
-                <div className="text-[#E2E8F0] text-sm leading-relaxed whitespace-pre-wrap pl-7 font-sans">
+                <div className="text-zinc-200 text-sm leading-relaxed whitespace-pre-wrap pl-6 font-sans">
                   {streamingText}
                 </div>
               </div>
@@ -491,7 +387,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
         {/* Floating Scroll to Bottom Button */}
         {isUserScrolledUp && (
-          <div className="absolute bottom-24 right-80 z-30 animate-in fade-in slide-in-from-bottom-2 pointer-events-auto">
+          <div className="absolute bottom-20 right-80 z-30 animate-in fade-in slide-in-from-bottom-2 pointer-events-auto">
             <button
               onClick={() => {
                 setIsUserScrolledUp(false);
@@ -500,7 +396,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                   scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
                 }
               }}
-              className="px-3.5 py-1.5 rounded-full bg-[#1E2538] hover:bg-[#27324B] text-white text-xs font-medium shadow-xl border border-[#2E3C57] flex items-center gap-2 backdrop-blur-md transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-full bg-[#1c1c22] hover:bg-[#25252e] text-white text-xs font-medium shadow-xl border border-[#2e2e38] flex items-center gap-2 backdrop-blur-md transition-all cursor-pointer"
             >
               <ArrowDown className="w-3.5 h-3.5" />
               <span>New events below</span>
@@ -510,18 +406,18 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
         {/* Action Confirmation Banner */}
         {pendingConfirm && (
-          <div className="p-3 bg-amber-950/40 border-t border-amber-500/30 flex items-center justify-between gap-4 px-6">
+          <div className="p-3 bg-[#181512] border-t border-amber-500/30 flex items-center justify-between gap-4 px-6">
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
               <div className="text-xs">
                 <span className="font-semibold text-white">Action Confirmation: </span>
-                <span className="text-neutral-300">{pendingConfirm.tool} — {pendingConfirm.reason}</span>
+                <span className="text-zinc-300">{pendingConfirm.tool} — {pendingConfirm.reason}</span>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => onConfirm(false)}
-                className="px-3 py-1 rounded-lg text-xs font-medium bg-[#1A2234] text-neutral-300 hover:text-white transition-colors cursor-pointer"
+                className="px-3 py-1 rounded-lg text-xs font-medium bg-[#1e1e24] text-zinc-300 hover:text-white transition-colors cursor-pointer"
               >
                 Decline
               </button>
@@ -536,7 +432,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         )}
 
         {/* Bottom Composer Container */}
-        <div className="p-5 border-t border-[#1E2536] bg-[#0B0E14] shrink-0">
+        <div className="p-4 border-t border-[#1f1f24] bg-[#09090b] shrink-0">
           <div className="max-w-3xl mx-auto">
             <Composer
               running={running}
@@ -548,7 +444,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         </div>
       </div>
 
-      {/* Right Column: Workspace Right Panels (Current Plan, Files, Context, Activity) */}
+      {/* Right Column: Workspace Right Panels (Real Plan, Files, Context, Activity) */}
       <WorkspaceRightPanels
         plan={plan}
         taskGraph={taskGraph}

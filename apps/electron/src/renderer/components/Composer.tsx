@@ -33,7 +33,6 @@ interface CommandItem {
 const BUILTIN_COMMANDS: CommandItem[] = [
   { command: '/skills', name: 'Skills Hub', description: 'Open skills and marketplace hub' },
   { command: '/marketplace', name: 'Marketplace', description: 'Browse available skills catalog' },
-  { command: '/multi', name: 'Multi-Agent', description: 'Run task with multi-agent coordination' },
   { command: '/clear', name: 'Clear Chat', description: 'Clear visible workspace timeline' },
   { command: '/help', name: 'Command Palette', description: 'Open global command palette' },
 ];
@@ -117,7 +116,7 @@ export const Composer: React.FC<Props> = ({
       onSubmit(t);
       setValue('');
       if (ref.current) {
-        ref.current.style.height = '48px';
+        ref.current.style.height = '44px';
       }
     }
   };
@@ -128,11 +127,11 @@ export const Composer: React.FC<Props> = ({
   };
 
   return (
-    <div className="relative rounded-2xl border border-[#1E2536] bg-[#121722] p-3 shadow-xl transition-all select-none">
+    <div className="relative rounded-2xl border border-[#202026] bg-[#121215] p-3 shadow-xl transition-all select-none">
       {/* Slash command autocomplete popup */}
       {isSlashActive && matchingCommands.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 w-full max-w-md bg-[#161D2B] border border-[#222C40] rounded-xl shadow-2xl overflow-hidden z-50">
-          <div className="px-3 py-1.5 border-b border-[#222C40] text-[10px] font-medium text-zinc-400 uppercase tracking-wider flex items-center justify-between">
+        <div className="absolute bottom-full left-0 mb-2 w-full max-w-md bg-[#141418] border border-[#24242c] rounded-xl shadow-2xl overflow-hidden z-50">
+          <div className="px-3 py-1.5 border-b border-[#202028] text-[10px] font-medium text-zinc-400 uppercase tracking-wider flex items-center justify-between">
             <span>Available Commands & Skills</span>
             <span className="font-mono text-zinc-500">Tab to complete</span>
           </div>
@@ -142,27 +141,27 @@ export const Composer: React.FC<Props> = ({
                 key={cmd.command}
                 onMouseDown={() => handleSelectCommand(cmd.command)}
                 className={`px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-colors ${
-                  idx === selectedIdx ? 'bg-[#3B82F6]/20 text-white' : 'text-zinc-300 hover:bg-[#1C2538]'
+                  idx === selectedIdx ? 'bg-[#22222a] text-white' : 'text-zinc-300 hover:bg-[#1a1a20]'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-6 h-6 rounded bg-[#1B2232] border border-[#263147] flex items-center justify-center shrink-0">
+                  <div className="w-6 h-6 rounded bg-[#18181e] border border-[#23232a] flex items-center justify-center shrink-0">
                     {cmd.isSkill ? (
-                      <Sparkles className="w-3.5 h-3.5 text-[#3B82F6]" />
+                      <Sparkles className="w-3.5 h-3.5 text-zinc-300" />
                     ) : (
                       <Terminal className="w-3.5 h-3.5 text-zinc-400" />
                     )}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-[#3B82F6]">{cmd.command}</span>
-                      <span className="text-xs text-zinc-200 truncate">{cmd.name}</span>
+                      <span className="font-mono text-xs font-semibold text-white">{cmd.command}</span>
+                      <span className="text-xs text-zinc-300 truncate">{cmd.name}</span>
                     </div>
                     <div className="text-[11px] text-zinc-400 truncate">{cmd.description}</div>
                   </div>
                 </div>
                 {cmd.category && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1B2232] text-zinc-400 shrink-0 ml-2">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#18181e] text-zinc-400 shrink-0 ml-2">
                     {cmd.category}
                   </span>
                 )}
@@ -178,10 +177,10 @@ export const Composer: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setMode('ask')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               mode === 'ask'
-                ? 'bg-[#1C2436] text-white shadow-sm border border-[#27324B]'
-                : 'text-[#94A3B8] hover:text-white'
+                ? 'bg-[#1f1f26] text-white shadow-sm border border-[#2b2b35]'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
             Ask
@@ -189,10 +188,10 @@ export const Composer: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setMode('command')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               mode === 'command'
-                ? 'bg-[#1C2436] text-white shadow-sm border border-[#27324B]'
-                : 'text-[#94A3B8] hover:text-white'
+                ? 'bg-[#1f1f26] text-white shadow-sm border border-[#2b2b35]'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
             Command
@@ -201,7 +200,7 @@ export const Composer: React.FC<Props> = ({
 
         <button
           type="button"
-          className="p-1 text-[#64748B] hover:text-white transition-colors rounded-md hover:bg-[#1A2234]"
+          className="p-1 text-zinc-500 hover:text-white transition-colors rounded-md hover:bg-[#1c1c22] cursor-pointer"
           title="Fullscreen Composer"
         >
           <Maximize2 className="w-3.5 h-3.5" />
@@ -221,7 +220,7 @@ export const Composer: React.FC<Props> = ({
           rows={2}
           disabled={disabled}
           placeholder={placeholder ?? 'Describe a task or ask anything...'}
-          className="w-full bg-transparent outline-none resize-none text-sm text-[#F1F5F9] placeholder:text-[#64748B] font-sans max-h-[160px] min-h-[48px] leading-relaxed"
+          className="w-full bg-transparent outline-none resize-none text-sm text-zinc-100 placeholder:text-zinc-500 font-sans max-h-[160px] min-h-[44px] leading-relaxed"
           onInput={(e) => {
             const el = e.currentTarget;
             el.style.height = 'auto';
@@ -231,7 +230,7 @@ export const Composer: React.FC<Props> = ({
       </div>
 
       {/* Keyboard hints row */}
-      <div className="px-1 pb-2 text-[11px] font-mono text-[#64748B] flex items-center gap-3 select-none">
+      <div className="px-1 pb-2 text-[11px] font-mono text-zinc-500 flex items-center gap-3 select-none">
         <span>Enter to send</span>
         <span>Shift+Enter for new line</span>
         <span>/ to access skills</span>
@@ -243,20 +242,20 @@ export const Composer: React.FC<Props> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161D2B] hover:bg-[#1D2638] border border-[#222B3D] text-[11px] font-mono text-zinc-300 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16161b] hover:bg-[#1d1d23] border border-[#23232a] text-[11px] font-mono text-zinc-300 transition-colors cursor-pointer"
           >
-            <Bot className="w-3.5 h-3.5 text-[#3B82F6]" />
+            <Bot className="w-3.5 h-3.5 text-zinc-400" />
             <span className="truncate max-w-[140px]">{model}</span>
-            <ChevronDown className="w-3 h-3 text-[#64748B]" />
+            <ChevronDown className="w-3 h-3 text-zinc-500" />
           </button>
 
           <button
             type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161D2B] hover:bg-[#1D2638] border border-[#222B3D] text-[11px] font-mono text-zinc-300 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16161b] hover:bg-[#1d1d23] border border-[#23232a] text-[11px] font-mono text-zinc-300 transition-colors cursor-pointer"
           >
-            <Sliders className="w-3.5 h-3.5 text-[#64748B]" />
+            <Sliders className="w-3.5 h-3.5 text-zinc-500" />
             <span>Balanced</span>
-            <ChevronDown className="w-3 h-3 text-[#64748B]" />
+            <ChevronDown className="w-3 h-3 text-zinc-500" />
           </button>
         </div>
 
@@ -264,21 +263,21 @@ export const Composer: React.FC<Props> = ({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A2234] transition-colors"
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-[#1a1a20] transition-colors cursor-pointer"
             title="Attach file"
           >
             <Paperclip className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A2234] transition-colors"
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-[#1a1a20] transition-colors cursor-pointer"
             title="Insert code snippet"
           >
             <Code2 className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
-            className="p-1.5 rounded-lg text-[#64748B] hover:text-white hover:bg-[#1A2234] transition-colors"
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-[#1a1a20] transition-colors cursor-pointer"
             title="Voice input"
           >
             <Mic className="w-3.5 h-3.5" />
@@ -288,7 +287,7 @@ export const Composer: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="ml-1 w-7 h-7 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 flex items-center justify-center transition-colors shadow-sm"
+              className="ml-1 w-7 h-7 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
               title="Stop Agent"
             >
               <Square className="w-3 h-3 fill-current" />
@@ -301,10 +300,10 @@ export const Composer: React.FC<Props> = ({
                 if (!t || disabled || running) return;
                 onSubmit(t);
                 setValue('');
-                if (ref.current) ref.current.style.height = '48px';
+                if (ref.current) ref.current.style.height = '44px';
               }}
               disabled={disabled || running || !value.trim()}
-              className="ml-1 w-7 h-7 rounded-xl bg-[#252D3F] hover:bg-[#323D54] disabled:opacity-40 disabled:cursor-not-allowed text-white border border-white/10 flex items-center justify-center transition-colors shadow-sm"
+              className="ml-1 w-7 h-7 rounded-xl bg-[#25252e] hover:bg-[#32323e] disabled:opacity-40 disabled:cursor-not-allowed text-white border border-white/10 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
               title="Send message (Enter)"
             >
               <ArrowUp className="w-3.5 h-3.5" />

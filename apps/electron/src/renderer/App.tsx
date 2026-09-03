@@ -472,12 +472,12 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0B0E14] text-[#f4f4f5] overflow-hidden select-none font-sans">
+    <div className="h-screen w-screen flex flex-col bg-[#09090b] text-[#f4f4f5] overflow-hidden select-none font-sans">
       {/* Top Application Bar */}
       <TopBar
         currentPage={currentPage}
         projectRoot={projectRoot}
-        workspaceName={workspaceInfo?.name || 'Project Atlas'}
+        workspaceName={workspaceInfo?.name || 'cluster'}
         model={config?.model || activeSession?.model}
         sessionTitle={activeSession?.title}
         running={agent.running}
@@ -498,7 +498,7 @@ export default function App() {
           activeSessionId={activeSessionId}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
-          workspaceName={workspaceInfo?.name || 'Project Atlas'}
+          workspaceName={workspaceInfo?.name || 'cluster'}
           taskGraph={agent.taskGraph}
           running={agent.running}
           diffCount={agent.edits.length}
@@ -508,7 +508,7 @@ export default function App() {
         />
 
         {/* Dynamic Page Rendering */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#0B0E14] overflow-hidden">
+        <main className="flex-1 flex flex-col min-w-0 bg-[#09090b] overflow-hidden">
           {currentPage === 'sessions' && (
             <SessionsPage
               sessions={sessions}
@@ -540,9 +540,9 @@ export default function App() {
               swarmSummary={agent.swarmSummary}
               verificationReport={agent.verificationReport}
               plan={agent.plan}
-              workspaceName={workspaceInfo?.name || 'Project Atlas'}
+              workspaceName={workspaceInfo?.name || 'cluster'}
               projectRoot={projectRoot}
-              gitBranch={workspaceInfo?.git?.branch || 'feature/dark-mode'}
+              gitBranch={workspaceInfo?.git?.branch || 'main'}
               model={config?.model || activeSession?.model || 'Claude 3.5 Sonnet'}
               provider={config?.provider || 'Anthropic'}
               edits={agent.edits}
