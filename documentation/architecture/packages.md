@@ -248,5 +248,5 @@ Reusable React components used across the renderer.
 @cluster/task-engine     ← @cluster/shared
 @cluster/agent-core      ← @cluster/shared, @cluster/tool-runtime, @cluster/workspace, @cluster/memory
 @cluster/ui-kit          ← React only (no internal deps)
-cluster-electron         ← ALL packages
+cluster-desktop          ← ALL packages
 ```

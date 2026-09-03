@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Cluster CLI - Terminal-first AI coding assistant. Phase 1: a reliable MVP foundation.",
+  "author": "Abrar Safin",
   "license": "MIT",
   "workspaces": [
     "apps/*",
@@ -17,14 +18,14 @@
     "rebuild": "tsc -b --force",
     "clean": "tsc -b --clean",
     "typecheck": "tsc -b --pretty false",
-    "dev": "npm --workspace=cluster-electron run dev",
-    "start": "npm --workspace=cluster-electron run start",
-    "cluster": "npm --workspace=cluster-electron run start",
+    "dev": "npm --workspace=cluster-desktop run dev",
+    "start": "npm --workspace=cluster-desktop run start",
+    "cluster": "npm --workspace=cluster-desktop run start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "electron:dev": "npm --workspace=cluster-electron run dev",
-    "electron:build": "npm --workspace=cluster-electron run build",
-    "electron:package": "npm --workspace=cluster-electron run build:installer"
+    "electron:dev": "npm --workspace=cluster-desktop run dev",
+    "electron:build": "npm --workspace=cluster-desktop run build",
+    "electron:package": "npm --workspace=cluster-desktop run build:installer"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

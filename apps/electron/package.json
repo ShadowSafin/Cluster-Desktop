@@ -1,8 +1,9 @@
 {
-  "name": "cluster-electron",
+  "name": "cluster-desktop",
   "version": "0.1.0",
   "private": true,
   "description": "Cluster Desktop — premium dark coding assistant",
+  "author": "Abrar Safin",
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
