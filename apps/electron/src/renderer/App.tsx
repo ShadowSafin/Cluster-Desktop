@@ -21,13 +21,26 @@ import { SettingsPage } from './pages/SettingsPage';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageId>('workspace');
-  const [projectRoot, setProjectRoot] = useState<string>('');
+  const [projectRoot, setProjectRoot] = useState<string>(() => {
+    try {
+      return localStorage.getItem('cluster:last_workspace') || '';
+    } catch {
+      return '';
+    }
+  });
   const [workspaceInfo, setWorkspaceInfo] = useState<any>(null);
   const [config, setConfig] = useState<any>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showPalette, setShowPalette] = useState(false);
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
-  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
+  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>(() => {
+    try {
+      const saved = localStorage.getItem('cluster:recent_workspaces');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
 
   const isElectron = typeof (window as any).cluster !== 'undefined';
@@ -49,11 +62,32 @@ export default function App() {
     let isMounted = true;
     (async () => {
       try {
-        const detected = await window.cluster.workspace.detect();
-        const root = detected?.root || (typeof process !== 'undefined' ? (process as any).cwd?.() : '') || 'C:/Coding Agent';
+        // Priority 1: Check localStorage for last opened workspace
+        let initialCandidate: string | null = null;
+        try {
+          const savedLast = localStorage.getItem('cluster:last_workspace');
+          if (savedLast) {
+            initialCandidate = savedLast;
+          } else {
+            const recentsRaw = localStorage.getItem('cluster:recent_workspaces');
+            if (recentsRaw) {
+              const parsed = JSON.parse(recentsRaw);
+              if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.path) {
+                initialCandidate = parsed[0].path;
+              }
+            }
+          }
+        } catch {}
+
+        const detected = await window.cluster.workspace.detect(initialCandidate || undefined);
+        const root = (detected?.root || initialCandidate || 'C:/Coding Agent').replace(/\\/g, '/');
         if (!isMounted) return;
 
         setProjectRoot(root);
+        try {
+          localStorage.setItem('cluster:last_workspace', root);
+        } catch {}
+
         const ws = await window.cluster.workspace.info(root);
         if (!isMounted) return;
         setWorkspaceInfo(ws);
@@ -75,19 +109,12 @@ export default function App() {
     };
   }, [isElectron]);
 
-  // Load recent workspaces from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('cluster:recent_workspaces');
-      if (saved) {
-        setRecentWorkspaces(JSON.parse(saved));
-      }
-    } catch {}
-  }, []);
-
   const addRecentWorkspace = useCallback((folderPath: string, name?: string) => {
     const cleanPath = folderPath.replace(/\\/g, '/');
     const folderName = name || cleanPath.split('/').filter(Boolean).pop() || cleanPath;
+    try {
+      localStorage.setItem('cluster:last_workspace', cleanPath);
+    } catch {}
     setRecentWorkspaces(prev => {
       const filtered = prev.filter(w => w.path.toLowerCase() !== cleanPath.toLowerCase());
       const updated = [{ path: cleanPath, name: folderName, lastOpenedAt: new Date().toISOString() }, ...filtered].slice(0, 15);
@@ -97,9 +124,20 @@ export default function App() {
   }, []);
 
   const removeRecentWorkspace = useCallback((folderPath: string) => {
+    const cleanPath = folderPath.replace(/\\/g, '/');
     setRecentWorkspaces(prev => {
-      const updated = prev.filter(w => w.path.toLowerCase() !== folderPath.toLowerCase());
-      try { localStorage.setItem('cluster:recent_workspaces', JSON.stringify(updated)); } catch {}
+      const updated = prev.filter(w => w.path.toLowerCase() !== cleanPath.toLowerCase());
+      try {
+        localStorage.setItem('cluster:recent_workspaces', JSON.stringify(updated));
+        const lastSaved = localStorage.getItem('cluster:last_workspace');
+        if (lastSaved && lastSaved.toLowerCase() === cleanPath.toLowerCase()) {
+          if (updated.length > 0) {
+            localStorage.setItem('cluster:last_workspace', updated[0].path);
+          } else {
+            localStorage.removeItem('cluster:last_workspace');
+          }
+        }
+      } catch {}
       return updated;
     });
   }, []);
@@ -113,16 +151,20 @@ export default function App() {
         if (detected?.root) effectiveRoot = detected.root.replace(/\\/g, '/');
       }
       setProjectRoot(effectiveRoot);
+      try {
+        localStorage.setItem('cluster:last_workspace', effectiveRoot);
+      } catch {}
       setActiveSessionId(null);
       const ws = await window.cluster.workspace.info(effectiveRoot);
       setWorkspaceInfo(ws);
       addRecentWorkspace(effectiveRoot, ws?.name);
       const cfg = await window.cluster.config.get(effectiveRoot);
       setConfig(cfg);
+      refresh();
     } catch (err) {
       console.error('Failed to switch workspace:', err);
     }
-  }, [addRecentWorkspace]);
+  }, [addRecentWorkspace, refresh]);
 
   const handleOpenFolderDialog = useCallback(async () => {
     if (typeof window.cluster !== 'undefined' && window.cluster.dialog?.openDirectory) {

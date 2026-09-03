@@ -185,6 +185,21 @@ function registerIpc() {
   ipcMain.handle('workspace:info', async (_e, projectRoot: string) => {
     try {
       const info = await loadWorkspaceInfo(projectRoot);
+      if (info?.root) {
+        try {
+          const { clusterHome } = await import('@cluster/shared');
+          const fs2 = await import('node:fs/promises');
+          const path2 = await import('node:path');
+          const file = path2.join(clusterHome(), 'config.json');
+          let cur: any = {};
+          try { cur = JSON.parse(await fs2.readFile(file, 'utf8')); } catch {}
+          if (cur.lastWorkspace !== info.root) {
+            cur.lastWorkspace = info.root;
+            await fs2.mkdir(path2.dirname(file), { recursive: true });
+            await fs2.writeFile(file, JSON.stringify(cur, null, 2), 'utf8');
+          }
+        } catch {}
+      }
       return info;
     } catch (err) {
       return null;
@@ -192,7 +207,33 @@ function registerIpc() {
   });
 
   ipcMain.handle('workspace:detect', async (_e, cwd?: string) => {
-    const detected = await detectProjectRoot(cwd ?? process.cwd());
+    let target = cwd;
+    const fs2 = await import('node:fs/promises');
+
+    // If cwd was provided, verify it exists on disk
+    if (target) {
+      try {
+        await fs2.access(target);
+      } catch {
+        target = undefined;
+      }
+    }
+
+    // If no valid cwd was provided, restore lastWorkspace from ~/.cluster/config.json
+    if (!target) {
+      try {
+        const { clusterHome } = await import('@cluster/shared');
+        const path2 = await import('node:path');
+        const file = path2.join(clusterHome(), 'config.json');
+        const cur = JSON.parse(await fs2.readFile(file, 'utf8'));
+        if (cur.lastWorkspace) {
+          await fs2.access(cur.lastWorkspace);
+          target = cur.lastWorkspace;
+        }
+      } catch {}
+    }
+
+    const detected = await detectProjectRoot(target ?? process.cwd());
     return detected;
   });
 
