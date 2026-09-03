@@ -18,6 +18,7 @@ import { MemoryPage } from './pages/MemoryPage';
 import { SkillsPage } from './pages/SkillsPage';
 import { ProviderPage } from './pages/ProviderPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ModelSelectorModal } from './components/ModelSelectorModal';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageId>('workspace');
@@ -33,6 +34,7 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showPalette, setShowPalette] = useState(false);
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
+  const [showModelSelector, setShowModelSelector] = useState(false);
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>(() => {
     try {
       const saved = localStorage.getItem('cluster:recent_workspaces');
@@ -178,6 +180,21 @@ export default function App() {
       }
     }
   }, [handleSwitchWorkspace]);
+
+  const handleModelChange = useCallback(async (newModel: string) => {
+    if (!newModel) return;
+    try {
+      if (typeof window.cluster !== 'undefined' && window.cluster.config?.set) {
+        await window.cluster.config.set('model', newModel, projectRoot);
+        const updated = await window.cluster.config.get(projectRoot);
+        setConfig(updated);
+      } else {
+        setConfig((prev: any) => ({ ...prev, model: newModel }));
+      }
+    } catch (err) {
+      console.error('Failed to change model:', err);
+    }
+  }, [projectRoot]);
 
   // Auto-select first session if none selected
   useEffect(() => {
@@ -418,6 +435,7 @@ export default function App() {
     ];
 
     const actionItems = [
+      { id: 'action:switch-model', label: 'Change Active Model...', detail: 'Select LLM model for this workspace' },
       { id: 'action:open-folder', label: 'Open Workspace Folder...', detail: 'Browse directory with native picker · Ctrl+O', hotkey: 'Ctrl+O' },
       { id: 'action:switch-workspace', label: 'Switch Workspace...', detail: 'Browse recent workspaces or enter path' },
       { id: 'action:new-session', label: 'Create New Session', detail: 'Start fresh session' },
@@ -449,6 +467,8 @@ export default function App() {
       const sid = id.slice(8);
       handleSelectSession(sid);
       setCurrentPage('workspace');
+    } else if (id === 'action:switch-model') {
+      setShowModelSelector(true);
     } else if (id === 'action:open-folder') {
       handleOpenFolderDialog();
     } else if (id === 'action:switch-workspace') {
@@ -487,6 +507,7 @@ export default function App() {
         onOpenWorkspaceSwitcher={() => setShowWorkspaceSwitcher(true)}
         onOpenFolderDialog={handleOpenFolderDialog}
         onNavigate={setCurrentPage}
+        onOpenModelSelector={() => setShowModelSelector(true)}
       />
 
       {/* Main Split Layout: Sidebar + Active Page */}
@@ -552,6 +573,7 @@ export default function App() {
               onOpenTasks={() => setCurrentPage('tasks')}
               onOpenDiffs={() => setCurrentPage('diff')}
               onOpenWorkspaceSwitcher={() => setShowWorkspaceSwitcher(true)}
+              onOpenModelSelector={() => setShowModelSelector(true)}
               recalledMemories={agent.recalledMemories}
               fileProgress={agent.fileProgress}
               activeSkill={agent.activeSkill}
@@ -689,6 +711,15 @@ export default function App() {
         onOpenFolderDialog={handleOpenFolderDialog}
         recentWorkspaces={recentWorkspaces}
         onRemoveRecent={removeRecentWorkspace}
+      />
+
+      {/* Global Model Selector Modal */}
+      <ModelSelectorModal
+        open={showModelSelector}
+        onClose={() => setShowModelSelector(false)}
+        currentModel={config?.model || activeSession?.model || 'claude-3-5-sonnet-20241022'}
+        onSelectModel={handleModelChange}
+        onOpenProviderSettings={() => setCurrentPage('provider')}
       />
     </div>
   );

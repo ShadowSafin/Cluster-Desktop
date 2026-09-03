@@ -9,8 +9,10 @@ import {
   Sparkles,
   Activity,
   ListTodo,
+  ChevronDown,
 } from 'lucide-react';
 import type { Plan } from '@cluster/shared';
+import { getModelDisplayName } from './ModelSelectorModal';
 
 export interface WorkspaceRightPanelsProps {
   plan?: Plan | null;
@@ -25,6 +27,7 @@ export interface WorkspaceRightPanelsProps {
   onOpenDiffs?: () => void;
   onOpenTasks?: () => void;
   onOpenLogs?: () => void;
+  onOpenModelSelector?: () => void;
 }
 
 export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
@@ -40,6 +43,7 @@ export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
   onOpenDiffs,
   onOpenTasks,
   onOpenLogs,
+  onOpenModelSelector,
 }) => {
   // Compute real plan steps from plan or taskGraph (NO hardcoded mock steps!)
   const steps = React.useMemo(() => {
@@ -254,9 +258,16 @@ export const WorkspaceRightPanels: React.FC<WorkspaceRightPanelsProps> = ({
               <span className="text-zinc-400">Provider</span>
               <span className="text-zinc-300">{provider || 'Anthropic'}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-zinc-400">Model</span>
-              <span className="font-mono text-zinc-300 truncate max-w-[140px]">{model}</span>
+            <div
+              onClick={onOpenModelSelector}
+              className="flex items-center justify-between p-1 -mx-1 rounded-lg hover:bg-[#18181f] cursor-pointer transition-colors group"
+              title="Click to switch model"
+            >
+              <span className="text-zinc-400 group-hover:text-zinc-200">Model</span>
+              <span className="font-mono text-zinc-300 group-hover:text-white truncate max-w-[140px] flex items-center gap-1">
+                <span>{getModelDisplayName(model)}</span>
+                <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 shrink-0" />
+              </span>
             </div>
           </div>
         </div>

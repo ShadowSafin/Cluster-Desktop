@@ -1,6 +1,7 @@
 import React from 'react';
-import { Search, Plus, Settings, Clock, ChevronRight } from 'lucide-react';
+import { Search, Plus, Settings, Clock, Bot, ChevronDown } from 'lucide-react';
 import type { PageId } from './Sidebar';
+import { getModelDisplayName } from './ModelSelectorModal';
 
 interface TopBarProps {
   currentPage: PageId;
@@ -15,6 +16,7 @@ interface TopBarProps {
   onOpenWorkspaceSwitcher?: () => void;
   onOpenFolderDialog?: () => void;
   onNavigate?: (page: PageId) => void;
+  onOpenModelSelector?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -30,6 +32,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenWorkspaceSwitcher,
   onOpenFolderDialog,
   onNavigate,
+  onOpenModelSelector,
 }) => {
   const isWindows =
     typeof navigator !== 'undefined' &&
@@ -75,8 +78,20 @@ export const TopBar: React.FC<TopBarProps> = ({
         </button>
       </div>
 
-      {/* Right Controls: + New Session, Settings, History */}
+      {/* Right Controls: Model Picker, + New Session, Settings, History */}
       <div className="flex items-center gap-2 no-drag shrink-0">
+        {model && (
+          <button
+            onClick={onOpenModelSelector}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#131316] hover:bg-[#1c1c22] border border-[#1f1f25] hover:border-[#2a2a34] text-[11px] font-mono text-zinc-300 hover:text-white transition-all shadow-sm cursor-pointer group"
+            title="Click to switch model"
+          >
+            <Bot className="w-3.5 h-3.5 text-zinc-400 group-hover:text-emerald-400 transition-colors" />
+            <span className="truncate max-w-[120px]">{getModelDisplayName(model)}</span>
+            <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+          </button>
+        )}
+
         <button
           onClick={onNewSession}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#16161b] hover:bg-[#202028] border border-[#22222a] text-zinc-200 hover:text-white text-xs font-medium transition-all shadow-sm cursor-pointer"

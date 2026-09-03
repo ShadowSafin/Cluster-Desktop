@@ -54,6 +54,7 @@ interface WorkspacePageProps {
   onOpenTasks: () => void;
   onOpenDiffs: () => void;
   onOpenWorkspaceSwitcher?: () => void;
+  onOpenModelSelector?: () => void;
 }
 
 type TabMode = 'chat' | 'plan' | 'files';
@@ -218,6 +219,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   onOpenTasks,
   onOpenDiffs,
   onOpenWorkspaceSwitcher,
+  onOpenModelSelector,
 }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('chat');
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
@@ -439,6 +441,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
               onSubmit={onSubmit}
               onCancel={onCancel}
               model={model}
+              onOpenModelSelector={onOpenModelSelector}
             />
           </div>
         </div>
@@ -457,6 +460,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         provider={provider}
         onOpenDiffs={onOpenDiffs}
         onOpenTasks={onOpenTasks}
+        onOpenModelSelector={onOpenModelSelector}
       />
     </div>
   );

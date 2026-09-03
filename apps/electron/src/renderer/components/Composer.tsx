@@ -12,6 +12,7 @@ import {
   Bot,
   ChevronDown,
 } from 'lucide-react';
+import { getModelDisplayName } from './ModelSelectorModal';
 
 interface Props {
   onSubmit: (text: string) => void;
@@ -20,6 +21,7 @@ interface Props {
   onCancel?: () => void;
   placeholder?: string;
   model?: string;
+  onOpenModelSelector?: () => void;
 }
 
 interface CommandItem {
@@ -44,6 +46,7 @@ export const Composer: React.FC<Props> = ({
   onCancel,
   placeholder,
   model = 'Claude 3.5 Sonnet',
+  onOpenModelSelector,
 }) => {
   const [value, setValue] = useState('');
   const [mode, setMode] = useState<'ask' | 'command'>('ask');
@@ -242,11 +245,13 @@ export const Composer: React.FC<Props> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16161b] hover:bg-[#1d1d23] border border-[#23232a] text-[11px] font-mono text-zinc-300 transition-colors cursor-pointer"
+            onClick={onOpenModelSelector}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16161b] hover:bg-[#1f1f26] border border-[#23232a] hover:border-[#32323e] text-[11px] font-mono text-zinc-300 hover:text-white transition-all cursor-pointer group"
+            title="Click to switch model"
           >
-            <Bot className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="truncate max-w-[140px]">{model}</span>
-            <ChevronDown className="w-3 h-3 text-zinc-500" />
+            <Bot className="w-3.5 h-3.5 text-zinc-400 group-hover:text-emerald-400 transition-colors" />
+            <span className="truncate max-w-[140px]">{getModelDisplayName(model)}</span>
+            <ChevronDown className="w-3 h-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
           </button>
 
           <button
