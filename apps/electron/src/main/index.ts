@@ -636,29 +636,7 @@ function registerIpc() {
       return { ok:true, demo:true };
     }
 
-function shouldSpawnSubAgents(text: string, mode?: 'single' | 'multi'): boolean {
-  if (mode === 'multi') return true;
-  if (mode === 'single') return false;
-
-  const t = text.trim().toLowerCase();
-  if (t.length < 20 && !/create|build|make|add|fix|test/.test(t)) {
-    return false;
-  }
-  if (/^(hi|hello|hey|help|what is|how to|who are you|explain|what time)/i.test(t) && t.split(/\s+/).length <= 8) {
-    return false;
-  }
-
-  const buildIntents = /create|build|make|implement|add|develop|scaffold|architect|redesign|refactor|rewrite|audit|analyze|investigate|migrate|deploy|system|feature|dashboard|component/i;
-  const multiTaskIndicators = /and\s+also|then\s+also|multiple|several|step by step|in parallel|sub-agent|subagent/i;
-
-  if (buildIntents.test(t)) return true;
-  if (multiTaskIndicators.test(t)) return true;
-  if (t.split(/\s+/).length > 20) return true;
-
-  return false;
-}
-
-    // Real LLM path
+    // Real LLM path: default to single agent AgentLoop to avoid rate limits
     const { ModelProvider } = await import('@cluster/agent-core');
     const { createDefaultRegistry, createPhase2Registry } = await import('@cluster/tool-runtime');
     const { AgentLoop, Coordinator } = await import('@cluster/agent-core');
@@ -668,7 +646,7 @@ function shouldSpawnSubAgents(text: string, mode?: 'single' | 'multi'): boolean 
       session.model = activeModel;
       await store.flush();
     }
-    const isMulti = shouldSpawnSubAgents(payload.text, payload.mode);
+    const isMulti = payload.mode === 'multi';
     const provider = new ModelProvider({ ...cfg, model: activeModel });
     const registry = isMulti ? createPhase2Registry() : createDefaultRegistry();
     const events = new Emitter<any>((e:any)=>console.error(e));

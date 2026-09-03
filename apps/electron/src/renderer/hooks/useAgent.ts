@@ -358,7 +358,7 @@ export function useAgent(sessionId: string | null) {
     const isMulti = trimmed.startsWith('/multi ');
     const actualText = isMulti ? trimmed.replace(/^\/multi\s+/, '') : trimmed;
     try {
-      await window.cluster.agent.send({ sessionId, text: actualText, mode: isMulti ? 'multi' : undefined });
+      await window.cluster.agent.send({ sessionId, text: actualText, mode: isMulti ? 'multi' : 'single' });
     } catch (e:any) {
       pushActivity(`send failed: ${e.message}`);
       setRunning(false);
