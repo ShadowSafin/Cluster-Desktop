@@ -21,12 +21,15 @@ async function resolveRendererEntry(): Promise<string> {
 }
 
 function createWindow() {
+  const iconPath = path.resolve(__dirname, '../../resources/icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1100,
     minHeight: 680,
     backgroundColor: '#0a0a0d',
+    icon: iconPath,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#0a0a0d',

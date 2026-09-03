@@ -24,6 +24,7 @@ import { Composer } from '../components/Composer';
 import { WorkflowCard, type CardType, type CardStatus } from '../components/WorkflowCard';
 import { FileProgressCard } from '../components/FileProgressCard';
 import { PerfDiagnosticsModal } from '../components/PerfDiagnosticsModal';
+import { ClusterLogo } from '../components/ClusterLogo';
 import { useVirtualList } from '../hooks/useVirtualList';
 import type { TimelineEntry, AgentState, FileProgressState } from '../hooks/useAgent';
 
@@ -793,9 +794,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             {/* Welcome Card if empty */}
             {entries.length === 0 && !streamingText && (
               <div className="my-12 rounded-2xl border border-dashed border-[#232326] bg-[#0f0f12]/50 p-8 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-b from-[#27272a] to-[#18181b] border border-[#3f3f46] flex items-center justify-center mx-auto mb-4 shadow-md">
-                  <span className="text-white font-bold text-lg">◈</span>
-                </div>
+                <ClusterLogo size={56} withShadow className="mx-auto mb-4" />
                 <h2 className="text-sm font-semibold text-white">Cluster Senior Coding Assistant</h2>
                 <p className="text-xs text-[#71717a] mt-1.5 leading-relaxed max-w-lg mx-auto">
                   Submit a task, ask questions, or run commands. The system plans with architectural precision,

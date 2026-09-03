@@ -1,5 +1,6 @@
 import React from 'react';
 import { SessionSummary } from '../hooks/useSessions';
+import { ClusterLogo } from './ClusterLogo';
 
 export type PageId =
   | 'sessions'
@@ -90,9 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title="Click to switch workspace (Ctrl+O)"
           className="flex items-center gap-2.5 p-1.5 -m-1.5 rounded-xl hover:bg-[#18181b] border border-transparent hover:border-[#27272a] transition-all cursor-pointer group flex-1 mr-2 min-w-0"
         >
-          <div className="w-7 h-7 rounded-lg bg-white text-black font-bold flex items-center justify-center text-sm shadow-sm shrink-0">
-            ◈
-          </div>
+          <ClusterLogo size={26} withShadow className="shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="font-bold text-white tracking-wide text-xs leading-none">CLUSTER</span>

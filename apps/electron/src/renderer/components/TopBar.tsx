@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PageId } from './Sidebar';
+import { ClusterLogo } from './ClusterLogo';
 
 interface TopBarProps {
   currentPage: PageId;
@@ -48,6 +49,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     <header className="h-10 shrink-0 flex items-center justify-between px-3 bg-[#0a0a0d] border-b border-[#232326] drag-region select-none text-xs">
       {/* Breadcrumb & Status */}
       <div className="flex items-center gap-2 no-drag min-w-0">
+        <ClusterLogo size={16} rounded={true} />
         <span className="font-bold text-white text-xs tracking-wider">CLUSTER</span>
         <span className="text-[#52525b]">/</span>
 

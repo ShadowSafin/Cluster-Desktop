@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ClusterLogo } from './ClusterLogo';
 
 export type CardType =
   | 'file_read'
@@ -209,7 +210,7 @@ const WorkflowCardComponent: React.FC<WorkflowCardProps> = ({
         };
       case 'assistant':
         return {
-          icon: '◈',
+          icon: <ClusterLogo size={14} />,
           accentBorder: 'border-[#27272d] hover:border-[#383842]',
           accentBadge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
           accentText: 'text-white',
