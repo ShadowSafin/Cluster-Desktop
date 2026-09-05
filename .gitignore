@@ -41,6 +41,7 @@ temp/
 .kiro/
 .opencode/
 .impeccable/
+.workbuddy-ai/
 
 # IDE / OS
 .vscode/
