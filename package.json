@@ -25,7 +25,9 @@
     "test:watch": "vitest",
     "electron:dev": "npm --workspace=cluster-desktop run dev",
     "electron:build": "npm --workspace=cluster-desktop run build",
-    "electron:package": "npm --workspace=cluster-desktop run build:installer"
+    "electron:package": "node apps/installer/scripts/build-installer.js",
+    "electron:package:nsis": "npm --workspace=cluster-desktop run build:installer",
+    "installer:build": "node apps/installer/scripts/build-installer.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

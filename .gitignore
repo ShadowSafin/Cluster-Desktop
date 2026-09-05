@@ -7,7 +7,44 @@ dist/
 coverage/
 *.log
 .DS_Store
+Thumbs.db
+
 # Electron
 apps/electron/dist/
 apps/electron/release/
 apps/electron/node_modules/
+
+# Installer - build outputs only (source is tracked)
+apps/installer/dist/
+apps/installer/release/
+apps/installer/node_modules/
+apps/installer/out/
+apps/installer/resources/cluster-app.tar.gz
+
+# Build artifacts
+release/
+out/
+build/
+
+# Temp / probes
+.tmp-probe/
+tmp/
+temp/
+
+# AI assistants - local skills & caches (do not commit)
+.agent/
+.agents/
+.claude/
+.codex/
+.cursor/
+.gemini/
+.kiro/
+.opencode/
+.impeccable/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

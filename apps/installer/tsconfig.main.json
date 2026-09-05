@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist/main",
+    "rootDir": "src/main",
+    "module": "NodeNext",
+    "target": "ES2022",
+    "jsx": "react-jsx",
+    "composite": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/main/**/*"]
+}
